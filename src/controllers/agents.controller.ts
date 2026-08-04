@@ -17,12 +17,41 @@ export const agentQuerySchema = z.object({
   perPage: z.coerce.number().optional(),
 });
 
+export const reviewAgentSchema = z.object({
+  quote: z.string().min(10, 'Review must be at least 10 characters.'),
+  rating: z.number().int().min(1).max(5),
+});
+
+export const addCredentialSchema = z.object({
+  label: z.string().min(2),
+  issuer: z.string().min(2),
+  verifiedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format'),
+});
+
+export const addPortfolioSchema = z.object({
+  title: z.string().min(2),
+  assetType: z.string(),
+  location: z.string(),
+  summary: z.string(),
+  imageUrl: z.string().url().optional(),
+});
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Simple string hash for avatar hue */
+const getAvatarHue = (str: string) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return `hsl(${Math.abs(hash) % 360}, 70%, 50%)`;
+};
 
 const formatAgentSummary = (a: any) => ({
   id: a.id,
   name: a.name,
   initials: a.initials,
+  avatarHue: getAvatarHue(a.id),
   avatarUrl: a.avatar_url,
   verified: a.verified,
   location: a.location,
@@ -112,6 +141,7 @@ export const getAgent = async (req: AuthRequest, res: Response, next: NextFuncti
       bio: agent.bio,
       credentials: (credentialsRes.data ?? []).map((c: any) => ({
         label: c.label,
+        issuer: c.issuer,
         verifiedOn: c.verified_on,
       })),
       portfolio: (portfolioRes.data ?? []).map((p: any) => ({
@@ -126,11 +156,92 @@ export const getAgent = async (req: AuthRequest, res: Response, next: NextFuncti
         id: r.id,
         author: r.author,
         authorLocation: r.author_location,
-        quote: r.quote,
+        body: r.quote,
         rating: r.rating,
-        createdAt: r.created_at,
+        date: r.created_at,
       })),
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** POST /agents/:id/reviews — sender only */
+export const addReview = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { quote, rating } = req.body;
+    const user = req.user!;
+
+    // Make sure agent exists
+    const { data: agent, error } = await supabase.from('agents').select('id').eq('id', id).maybeSingle();
+    if (error) throw error;
+    if (!agent) return notFound(res, 'Agent');
+
+    // Call the RPC to insert review and recalculate rating safely
+    const { error: rpcError } = await supabase.rpc('add_agent_review', {
+      p_agent_id: id,
+      p_author: user.fullName,
+      p_author_location: user.country,
+      p_quote: quote,
+      p_rating: rating
+    });
+
+    if (rpcError) throw rpcError;
+    
+    return res.status(201).json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** POST /agents/:id/credentials — agent only */
+export const addCredential = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { label, issuer, verifiedOn } = req.body;
+    const user = req.user!;
+
+    // Ensure the agent belongs to the caller
+    const { data: agent, error } = await supabase.from('agents').select('user_id').eq('id', id).maybeSingle();
+    if (error) throw error;
+    if (!agent) return notFound(res, 'Agent');
+    if (agent.user_id !== user.id) return res.status(403).json({ error: { code: 'forbidden', message: 'Not authorized.' } });
+
+    const { data: cred, error: insertError } = await supabase
+      .from('agent_credentials')
+      .insert({ agent_id: id, label, issuer, verified_on: verifiedOn })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+    return res.status(201).json(cred);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** POST /agents/:id/portfolio — agent only */
+export const addPortfolio = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { title, assetType, location, summary, imageUrl } = req.body;
+    const user = req.user!;
+
+    // Ensure the agent belongs to the caller
+    const { data: agent, error } = await supabase.from('agents').select('user_id').eq('id', id).maybeSingle();
+    if (error) throw error;
+    if (!agent) return notFound(res, 'Agent');
+    if (agent.user_id !== user.id) return res.status(403).json({ error: { code: 'forbidden', message: 'Not authorized.' } });
+
+    const { data: port, error: insertError } = await supabase
+      .from('agent_portfolio')
+      .insert({ agent_id: id, title, asset_type: assetType, location, summary, image_url: imageUrl })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+    return res.status(201).json(port);
   } catch (err) {
     next(err);
   }

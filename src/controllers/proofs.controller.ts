@@ -6,8 +6,8 @@ import { AuthRequest } from '../middlewares/auth.middleware';
 import { buildError, forbidden, notFound, parsePagination, paginatedResponse } from '../utils/response';
 import { extractExif, verifyProof } from '../utils/exif';
 import { logActivity } from '../utils/activity';
-import { getUserAgentId } from './projects.controller';
-import { Role, ProofStatus, ProofType, ActivityType } from '../types/enums';
+import { runVerificationPipeline } from '../services/verification.service';
+import { Role, ProofStatus, ProofType, ActivityType, RiskLevel } from '../types/enums';
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
@@ -20,27 +20,31 @@ export const uploadProofSchema = z.object({
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const formatProof = (p: any) => ({
-  id: p.id,
-  projectId: p.project_id,
-  milestoneId: p.milestone_id,
-  type: p.type,
-  caption: p.caption,
-  fileUrl: p.file_url,
-  thumbnailUrl: p.thumbnail_url,
-  capturedAt: p.captured_at,
-  uploadedAt: p.uploaded_at,
-  geo: p.geo_lat !== null ? { lat: p.geo_lat, lng: p.geo_lng } : null,
-  verification: {
-    hasExifGps: p.has_exif_gps,
-    distanceFromSiteMetres: p.distance_from_site_metres,
-    withinSiteRadius: p.within_site_radius,
-    capturedBeforeMilestoneStart: p.captured_before_milestone_start,
-    clientMismatch: p.client_mismatch,
+const formatProof = (p: any) => {
+  const verificationPayload = p.risk_level !== null ? {
+    riskLevel: p.risk_level,
     verdict: p.verdict,
-  },
-  status: p.status,
-});
+    confidence: p.confidence,
+    summary: p.verification_summary,
+    checks: p.checks,
+    flags: p.flags
+  } : null;
+
+  return {
+    id: p.id,
+    projectId: p.project_id,
+    milestoneId: p.milestone_id,
+    type: p.type,
+    caption: p.caption,
+    fileUrl: p.file_url,
+    thumbnailUrl: p.thumbnail_url,
+    capturedAt: p.captured_at,
+    uploadedAt: p.uploaded_at,
+    geo: p.geo_lat !== null ? { lat: p.geo_lat, lng: p.geo_lng } : null,
+    verification: verificationPayload,
+    status: p.status,
+  };
+};
 
 const uploadToStorage = async (
   buffer: Buffer,
@@ -123,7 +127,7 @@ export const uploadProof = async (req: AuthRequest, res: Response, next: NextFun
       clientCapturedAt,
     });
 
-    // Persist proof record
+    // Persist proof record (synchronous insertion)
     const { data: proof, error: insertError } = await supabase
       .from('proofs')
       .insert({
@@ -151,6 +155,23 @@ export const uploadProof = async (req: AuthRequest, res: Response, next: NextFun
 
     if (insertError) throw insertError;
 
+    // Fire off async Verification Pipeline
+    runVerificationPipeline(
+      proof.id as string,
+      project.id as string,
+      milestoneId as string,
+      file.buffer,
+      file.mimetype,
+      {
+        hasExifGps: verification.hasExifGps,
+        distanceFromSiteMetres: verification.distanceFromSiteMetres,
+        withinSiteRadius: verification.withinSiteRadius,
+        capturedBeforeMilestoneStart: verification.capturedBeforeMilestoneStart,
+        clientMismatch: verification.clientMismatch,
+        baseVerdict: verification.verdict,
+      }
+    ).catch(err => console.error('Verification pipeline error:', err));
+
     // Increment proof_count on the milestone
     await supabase.rpc('increment_proof_count', { p_milestone_id: milestoneId });
 
@@ -162,6 +183,33 @@ export const uploadProof = async (req: AuthRequest, res: Response, next: NextFun
     });
 
     return res.status(201).json(formatProof(proof));
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** GET /proofs/:id/verification */
+export const getProofVerification = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const user = req.user!;
+
+    // Verify ownership
+    const { data: proof, error: proofError } = await supabase
+      .from('proofs')
+      .select('*, projects!proofs_project_id_fkey(sender_id, agents!projects_agent_id_fkey(user_id))')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (proofError) throw proofError;
+    if (!proof) return notFound(res, 'Proof');
+
+    const project = (proof as any).projects;
+    const agentUserId = project.agents?.user_id;
+    const isOwner = project.sender_id === user.id || agentUserId === user.id;
+    if (!isOwner) return forbidden(res);
+
+    return res.status(200).json(formatProof(proof));
   } catch (err) {
     next(err);
   }

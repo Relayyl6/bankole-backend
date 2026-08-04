@@ -81,3 +81,53 @@ export const ActivityType = {
   STAGE_UPDATED: 'stage_updated',
 } as const;
 export type ActivityType = (typeof ActivityType)[keyof typeof ActivityType];
+
+// ─── AI Verification Extensions ─────────────────────────────────────────────
+
+export const RiskLevel = {
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high',
+  UNVERIFIABLE: 'unverifiable',
+} as const;
+export type RiskLevel = (typeof RiskLevel)[keyof typeof RiskLevel];
+
+export const CheckId = {
+  INTEGRITY: 'integrity',
+  LOCATION: 'location',
+  TIMESTAMP: 'timestamp',
+  DUPLICATE: 'duplicate',
+  STAGE: 'stage',
+  CONTINUITY: 'continuity',
+  SEQUENCE: 'sequence',
+} as const;
+export type CheckId = (typeof CheckId)[keyof typeof CheckId];
+
+export const CheckResult = {
+  PASS: 'pass',
+  WARN: 'warn',
+  FAIL: 'fail',
+  SKIPPED: 'skipped',
+} as const;
+export type CheckResult = (typeof CheckResult)[keyof typeof CheckResult];
+
+export const FlagSeverity = {
+  LOW: 'low',
+  MEDIUM: 'medium',
+  HIGH: 'high',
+} as const;
+export type FlagSeverity = (typeof FlagSeverity)[keyof typeof FlagSeverity];
+
+export const FlagCode = {
+  STAGE_MISMATCH: 'stage_mismatch',
+  NO_PROGRESS: 'no_progress',
+  REGRESSION: 'regression',
+  NEAR_DUPLICATE: 'near_duplicate',
+  EXACT_DUPLICATE: 'exact_duplicate',
+  METADATA_STRIPPED: 'metadata_stripped',
+  METADATA_SUSPICIOUS: 'metadata_suspicious',
+  SITE_MISMATCH: 'site_mismatch',
+  INCOMPLETE_WORK: 'incomplete_work',
+  MODEL_UNAVAILABLE: 'model_unavailable',
+} as const;
+export type FlagCode = (typeof FlagCode)[keyof typeof FlagCode];

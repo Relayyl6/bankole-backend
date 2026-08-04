@@ -1,4 +1,29 @@
-# Bankole — API Specification
+# Bankole — API Specification & Implementation Notes
+
+This repository implements the backend service for the Bankole application. It strictly adheres to the API specification below while introducing several robust, production-grade architectural augmentations.
+
+## 🚀 Architectural Augmentations (Beyond the Contract)
+
+While the implementation strictly adheres to the requested API endpoints and response shapes, the following robust architectural features were built into the foundation to ensure the system is secure, performant, and safe for financial operations:
+
+1. **Atomic Escrow Ledger (Postgres RPC)**
+   Instead of updating the ledger in application space (which is vulnerable to race conditions), a custom Postgres RPC function (`release_milestone_escrow`) was built. It uses a row-level lock (`FOR UPDATE`) to atomically update balances and enforce the `fundsReleased + fundsInEscrow = totalBudget` invariant strictly at the database level.
+2. **Database-Backed Idempotency Engine**
+   The `POST /milestones/:id/release` endpoint is fully idempotent. An `idempotency.middleware.ts` intercepts the `Idempotency-Key` header and caches the response in an `idempotency_keys` table. If a client retries a request, the exact same JSON response is returned without running the logic or touching the ledger twice.
+3. **Haversine Distance & EXIF Verification**
+   The backend mathematically calculates the exact distance (in metres) over the Earth's surface between the project coordinates and the image's extracted EXIF GPS coordinates using the Haversine formula (`src/utils/exif.ts`).
+4. **Image Optimization (`sharp`)**
+   The server automatically generates lightweight thumbnails on the fly during upload using the high-performance `sharp` C++ library before sending them to storage.
+5. **Multi-Tiered Rate Limiting**
+   Implemented three layers of defense using `express-rate-limit`: a global limiter (200 reqs/15m), an Auth limiter (20 reqs/15m for `/login` and `/register` to prevent brute force), and an Upload limiter (30 reqs/15m).
+6. **Streaming Storage Uploads**
+   Files are never written to the server's local disk. `multer` buffers them in memory and streams them directly to Supabase Storage buckets, preventing disk exhaustion on cloud hosting platforms like Render.
+7. **Rich Profile Mutator (`PATCH /auth/me`)**
+   Although not specified in the original API contract, a universal profile update endpoint was built to support modern frontend onboarding flows. It automatically differentiates between Senders and Agents, updating their respective tables securely, and immediately returns the fully hydrated, updated profile object so the frontend can seamlessly update global state (e.g., Redux/Zustand) without a secondary fetch.
+
+---
+
+## The API Specification
 
 The interface contract between the Bankole frontend and its backend service.
 
@@ -606,3 +631,100 @@ the same endpoints.
 
 **Rate limiting.** If applied, return `429` with the standard error body and a
 `Retry-After` header.
+
+---
+
+## 15. Added Endpoints (Beyond the Contract)
+
+The following endpoints were added to the implementation to support modern, real-world onboarding flows that were not defined in the original contract.
+
+### `PATCH /auth/me` **[P1]**
+
+Allows an authenticated user to update their own profile. Automatically updates the `users` and/or `agents` tables depending on the caller's role, and returns the fully hydrated profile.
+
+**Requires Authentication:** Bearer token (`Authorization: Bearer <access_token>`)
+
+```json
+{
+  "fullName": "Adaeze Nwosu",
+  "country": "NG",
+  "bio": "Expert structural engineer with a focus on sustainable materials.",
+  "specialties": ["Foundation", "Concrete", "Roofing"],
+  "yearsExperience": 8,
+  "avatarUrl": "https://example.com/avatar.jpg"
+}
+```
+
+*Note: Senders can only update `fullName` and `country`. Extra fields will be safely ignored.*
+
+Returns `200`:
+
+```json
+{
+  "message": "Profile updated successfully.",
+  "updatedFields": {
+    "usersUpdated": true,
+    "agentsUpdated": true
+  },
+  "profile": {
+    "id": "usr_123",
+    "fullName": "Adaeze Nwosu",
+    "email": "adaeze.nwosu.test@gmail.com",
+    "role": "agent",
+    "country": "NG",
+    "createdAt": "2026-08-04T12:00:00Z",
+    "agentDetails": {
+      "bio": "Expert structural engineer with a focus on sustainable materials.",
+      "specialties": [
+        "Foundation",
+        "Concrete",
+        "Roofing"
+      ],
+      "yearsExperience": 8,
+      "avatarUrl": "https://example.com/avatar.jpg",
+      "verified": false,
+      "rating": 0,
+      "reviewCount": 0,
+      "completedProjects": 0
+    }
+  }
+}
+```
+### POST /agents/:id/reviews **[P1]**
+
+Allows a sender to rate an agent. Automatically calculates the new agent rating atomically using a custom database RPC.
+
+**Requires Authentication:** Bearer token (Authorization: Bearer <access_token>), Role: sender`n
+`json
+{
+  "quote": "Incredible attention to detail.",
+  "rating": 5
+}
+``n
+### POST /agents/:id/credentials **[P1]**
+
+Allows an agent to add a new credential to their profile.
+
+**Requires Authentication:** Bearer token (Authorization: Bearer <access_token>), Role: gent`n
+`json
+{
+  "label": "Certified Structural Engineer",
+  "issuer": "COREN",
+  "verifiedOn": "2024-05-15"
+}
+``n
+### POST /agents/:id/portfolio **[P1]**
+
+Allows an agent to add a past completed project to their portfolio.
+
+**Requires Authentication:** Bearer token (Authorization: Bearer <access_token>), Role: gent`n
+`json
+{
+  "title": "Lekki Phase 1 Duplex",
+  "assetType": "house",
+  "location": "Lagos, NG",
+  "summary": "Completed a 5-bedroom duplex from foundation to roofing.",
+  "imageUrl": "https://example.com/portfolio1.jpg"
+}
+``n
+> **Note on Retrieval:** There are no standalone GET endpoints for credentials, portfolio items, or reviews. In line with the original spec, these arrays are heavily aggregated and seamlessly embedded into the GET /agents/:id payload to allow the workspace to load the entire profile in a single network request.

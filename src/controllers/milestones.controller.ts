@@ -132,6 +132,7 @@ export const submitMilestone = async (req: AuthRequest, res: Response, next: Nex
 export const approveMilestone = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+    const { note } = req.body;
     const user = req.user!;
 
     const { data: milestone, error } = await getMilestoneWithProject(id as string);
@@ -154,10 +155,14 @@ export const approveMilestone = async (req: AuthRequest, res: Response, next: Ne
 
     if (updateError) throw updateError;
 
+    const logMessage = note 
+      ? `Milestone "${milestone.stage}" has been approved. Note: ${note}`
+      : `Milestone "${milestone.stage}" has been approved.`;
+
     await logActivity({
       projectId: project.id,
       type: ActivityType.MILESTONE_APPROVED,
-      message: `Milestone "${milestone.stage}" has been approved.`,
+      message: logMessage,
       actorId: user.id,
     });
 

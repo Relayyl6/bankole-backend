@@ -9,6 +9,7 @@ export interface AuthRequest extends Request {
     email: string;
     role: Role;
     fullName: string;
+    country: string;
   };
 }
 
@@ -33,7 +34,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     // Fetch the role and profile from our users table
     const { data: profile, error: profileError } = await supabase
       .from('users')
-      .select('full_name, role')
+      .select('full_name, role, country')
       .eq('id', authData.user.id)
       .maybeSingle();
 
@@ -46,6 +47,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       email: authData.user.email!,
       role: profile.role as Role,
       fullName: profile.full_name,
+      country: profile.country,
     };
 
     next();
