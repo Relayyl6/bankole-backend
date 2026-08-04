@@ -20,6 +20,10 @@ While the implementation strictly adheres to the requested API endpoints and res
    Files are never written to the server's local disk. `multer` buffers them in memory and streams them directly to Supabase Storage buckets, preventing disk exhaustion on cloud hosting platforms like Render.
 7. **Rich Profile Mutator (`PATCH /auth/me`)**
    Although not specified in the original API contract, a universal profile update endpoint was built to support modern frontend onboarding flows. It automatically differentiates between Senders and Agents, updating their respective tables securely, and immediately returns the fully hydrated, updated profile object so the frontend can seamlessly update global state (e.g., Redux/Zustand) without a secondary fetch.
+8. **Atomic Rating Recalculation (Postgres RPC)**
+   Agent ratings are recalculated using a custom Postgres RPC (`add_agent_review`) that applies a Row-Level Lock (`FOR UPDATE`) and calculates a mathematically pure cumulative moving average. This guarantees rating accuracy even if multiple users submit reviews for the same agent at the exact same millisecond.
+9. **Automated Agent Stats (Postgres Triggers)**
+   A Postgres Trigger automatically listens for project completion events and increments the agent's `completed_projects` counter. This entirely decouples statistical tallying from the application code, guaranteeing the database remains the source of truth without race conditions.
 
 ---
 
@@ -690,35 +694,41 @@ Returns `200`:
   }
 }
 ```
-### POST /agents/:id/reviews **[P1]**
+
+### `POST /agents/:id/reviews` **[P1]**
 
 Allows a sender to rate an agent. Automatically calculates the new agent rating atomically using a custom database RPC.
 
-**Requires Authentication:** Bearer token (Authorization: Bearer <access_token>), Role: sender`n
-`json
+**Requires Authentication:** Bearer token (`Authorization: Bearer <access_token>`), Role: `sender`
+
+```json
 {
   "quote": "Incredible attention to detail.",
   "rating": 5
 }
-``n
-### POST /agents/:id/credentials **[P1]**
+```
+
+### `POST /agents/:id/credentials` **[P1]**
 
 Allows an agent to add a new credential to their profile.
 
-**Requires Authentication:** Bearer token (Authorization: Bearer <access_token>), Role: gent`n
-`json
+**Requires Authentication:** Bearer token (`Authorization: Bearer <access_token>`), Role: `agent`
+
+```json
 {
   "label": "Certified Structural Engineer",
   "issuer": "COREN",
   "verifiedOn": "2024-05-15"
 }
-``n
-### POST /agents/:id/portfolio **[P1]**
+```
+
+### `POST /agents/:id/portfolio` **[P1]**
 
 Allows an agent to add a past completed project to their portfolio.
 
-**Requires Authentication:** Bearer token (Authorization: Bearer <access_token>), Role: gent`n
-`json
+**Requires Authentication:** Bearer token (`Authorization: Bearer <access_token>`), Role: `agent`
+
+```json
 {
   "title": "Lekki Phase 1 Duplex",
   "assetType": "house",
@@ -726,5 +736,29 @@ Allows an agent to add a past completed project to their portfolio.
   "summary": "Completed a 5-bedroom duplex from foundation to roofing.",
   "imageUrl": "https://example.com/portfolio1.jpg"
 }
-``n
-> **Note on Retrieval:** There are no standalone GET endpoints for credentials, portfolio items, or reviews. In line with the original spec, these arrays are heavily aggregated and seamlessly embedded into the GET /agents/:id payload to allow the workspace to load the entire profile in a single network request.
+```
+
+### `GET /proofs/:id/verification` **[P0]**
+
+Allows clients to poll the status of the asynchronous AI Verification background job triggered by uploading a proof. 
+
+**Requires Authentication:** Bearer token (`Authorization: Bearer <access_token>`)
+
+Returns `200`:
+
+```json
+{
+  "status": "completed",
+  "verification": {
+    "hasExifGps": true,
+    "distanceFromSiteMetres": 14,
+    "withinSiteRadius": true,
+    "capturedBeforeMilestoneStart": false,
+    "clientMismatch": false,
+    "verdict": "verified_on_site"
+  }
+}
+```
+*(Status can be `pending` or `completed`)*
+
+> **Note on Retrieval:** There are no standalone `GET` endpoints for credentials, portfolio items, or reviews. In line with the original spec, these arrays are heavily aggregated and seamlessly embedded into the `GET /agents/:id` payload to allow the workspace to load the entire profile in a single network request.
