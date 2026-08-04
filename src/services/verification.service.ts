@@ -50,6 +50,28 @@ const hammingDistance = (hash1: string, hash2: string): number => {
 };
 
 /**
+ * Executes an async function with exponential backoff retry.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 1000
+): Promise<T> {
+  let attempt = 0;
+  while (attempt < maxRetries) {
+    try {
+      return await fn();
+    } catch (err) {
+      attempt++;
+      if (attempt >= maxRetries) throw err;
+      const delay = baseDelayMs * Math.pow(2, attempt - 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Unreachable');
+}
+
+/**
  * Main verification pipeline entry point.
  * This should be fired asynchronously in the background.
  */
@@ -211,7 +233,7 @@ export const runVerificationPipeline = async (
           `obstructed, or too close-up to judge the stage, report low confidence rather than guessing. ` +
           `Write the reasoning for the person who sent the money, not for an engineer.`;
 
-        const interaction = await aiClient.models.generateContent({
+        const interaction = await withRetry(() => aiClient!.models.generateContent({
           model: "gemini-1.5-flash",
           contents: [
             { role: "user", parts: [
@@ -223,7 +245,7 @@ export const runVerificationPipeline = async (
             responseMimeType: "application/json",
             responseSchema: stageSchema as any,
           }
-        });
+        }));
 
         const stageResult = JSON.parse(interaction.text as string);
         confidence = stageResult.confidence;
@@ -263,9 +285,52 @@ export const runVerificationPipeline = async (
           .maybeSingle();
 
         if (lastApproved && lastApproved.file_url) {
-          // In a real app we'd fetch the buffer from the URL.
-          // For simplicity, we just skip it if we can't easily fetch it.
-          checks.push({ id: CheckId.CONTINUITY, result: CheckResult.SKIPPED, detail: 'Continuity check requires fetching remote image' });
+          try {
+            const response = await fetch(lastApproved.file_url);
+            if (!response.ok) throw new Error('Failed to fetch prior image');
+            
+            const arrayBuffer = await response.arrayBuffer();
+            const priorBuffer = Buffer.from(arrayBuffer);
+            const priorMimeType = response.headers.get('content-type') || 'image/jpeg';
+
+            const continuityPrompt = `These are two photos from a construction site in Nigeria.\n` +
+              `The first image is the previously approved milestone. The second image is the new submission.\n` +
+              `Do they look like they are of the same building/site? Answer true if they are consistent in architecture, surroundings, and materials, or false if they appear to be completely different locations.`;
+
+            const interaction = await withRetry(() => aiClient!.models.generateContent({
+              model: "gemini-1.5-flash",
+              contents: [
+                { role: "user", parts: [
+                  { text: continuityPrompt },
+                  { inlineData: { mimeType: priorMimeType, data: priorBuffer.toString('base64') } },
+                  { inlineData: { mimeType: mimeType, data: buffer.toString('base64') } }
+                ]}
+              ],
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: "object",
+                  properties: {
+                    isSameSite: { type: "boolean" },
+                    reasoning: { type: "string" }
+                  },
+                  required: ["isSameSite", "reasoning"]
+                } as any,
+              }
+            }));
+
+            const result = JSON.parse(interaction.text as string);
+            
+            if (!result.isSameSite) {
+              checks.push({ id: CheckId.CONTINUITY, result: CheckResult.FAIL, detail: result.reasoning });
+              flags.push({ code: FlagCode.SITE_MISMATCH, severity: FlagSeverity.HIGH, message: 'New photo does not appear to be from the same site as the previous milestone.' });
+              riskLevel = RiskLevel.HIGH;
+            } else {
+              checks.push({ id: CheckId.CONTINUITY, result: CheckResult.PASS, detail: 'Consistent with previous site imagery' });
+            }
+          } catch (fetchErr) {
+            checks.push({ id: CheckId.CONTINUITY, result: CheckResult.SKIPPED, detail: 'Could not fetch or process prior image for comparison' });
+          }
         } else {
           checks.push({ id: CheckId.CONTINUITY, result: CheckResult.SKIPPED, detail: 'First approved proof on project, nothing to compare' });
         }
