@@ -28,6 +28,7 @@ export const createProjectSchema = z.object({
   agentId: z.string().min(1),
   currency: z.enum(Object.values(Currency) as [string, ...string[]]),
   totalBudget: z.number().int().positive(),
+  supervisionFeePercentage: z.number().min(0).max(100).optional().default(0),
   scope: z.string().min(10),
   milestones: z.array(milestoneInputSchema).min(1, 'At least one milestone is required.'),
 });
@@ -38,6 +39,15 @@ export const patchProjectSchema = z.object({
   currentStage: z.string().optional(),
 });
 
+export const unassignAgentSchema = z.object({
+  reason: z.string().min(1, "Reason is required."),
+  requestDispute: z.boolean().optional().default(false),
+});
+
+export const assignAgentSchema = z.object({
+  newAgentId: z.string().min(1, "newAgentId is required."),
+});
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const formatProjectSummary = (p: any, agent: any) => ({
@@ -45,16 +55,19 @@ const formatProjectSummary = (p: any, agent: any) => ({
   name: p.name,
   assetType: p.asset_type,
   location: { label: p.location_label, lat: p.location_lat, lng: p.location_lng },
-  agent: {
+  agent: p.agent_id ? {
     id: agent?.id ?? p.agent_id,
     name: agent?.name ?? 'Unknown',
     initials: agent?.initials ?? '??',
     verified: agent?.verified ?? false,
-  },
+  } : null,
   currency: p.currency,
   totalBudget: p.total_budget,
   fundsReleased: p.funds_released,
   fundsInEscrow: p.funds_in_escrow,
+  supervisionFeePercentage: p.supervision_fee_percentage,
+  supervisionFeeTotal: p.supervision_fee_total,
+  supervisionFeePaid: p.supervision_fee_paid,
   currentStage: p.current_stage,
   status: p.status,
   milestoneCount: p.milestone_count,
@@ -179,7 +192,7 @@ export const getProject = async (req: AuthRequest, res: Response, next: NextFunc
 export const createProject = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const user = req.user!;
-    const { name, assetType, location, agentId, currency, totalBudget, scope, milestones } = req.body;
+    const { name, assetType, location, agentId, currency, totalBudget, supervisionFeePercentage, scope, milestones } = req.body;
 
     // Validate milestones business rules
     const validation = validateMilestones(milestones, totalBudget);
@@ -219,6 +232,9 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
         total_budget: totalBudget,
         funds_released: 0,
         funds_in_escrow: totalBudget,
+        supervision_fee_percentage: supervisionFeePercentage,
+        supervision_fee_total: Math.floor((totalBudget * supervisionFeePercentage) / 100),
+        supervision_fee_paid: 0,
         current_stage: firstMilestone.stage,
         status: ProjectStatus.ON_TRACK,
         scope,
@@ -362,4 +378,137 @@ export const getUserAgentId = async (userId: string): Promise<string | null> => 
     .eq('user_id', userId)
     .maybeSingle();
   return data?.id ?? null;
+};
+
+/** POST /projects/:id/unassign-agent */
+export const unassignAgent = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const user = req.user!;
+    const { reason, requestDispute } = req.body;
+
+    const { data: project, error: fetchError } = await supabase
+      .from('projects')
+      .select('id, sender_id, agent_id, status')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (!project) return notFound(res, 'Project');
+    if (project.sender_id !== user.id) return forbidden(res);
+    if (!project.agent_id) return res.status(400).json(buildError('invalid_state', 'No agent is currently assigned to this project.', 'agentId'));
+
+    // Check for pending proofs (Guard Rail 1)
+    const { data: milestones, error: msError } = await supabase
+      .from('milestones')
+      .select('status')
+      .eq('project_id', id);
+    if (msError) throw msError;
+
+    const hasPendingProof = (milestones ?? []).some((m: any) => m.status === 'proof_submitted');
+    if (hasPendingProof) {
+      return res.status(409).json(buildError('conflict', 'Cannot unassign agent while a milestone has a pending proof. Please approve or flag it first.', 'status'));
+    }
+
+    const hasInProgress = (milestones ?? []).some((m: any) => m.status === 'in_progress');
+    
+    let newStatus: string = ProjectStatus.AGENT_UNASSIGNED;
+    if (hasInProgress || requestDispute) {
+      newStatus = ProjectStatus.DISPUTE;
+    }
+
+    const { error: updateError } = await supabase
+      .from('projects')
+      .update({
+        agent_id: null,
+        status: newStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (updateError) throw updateError;
+
+    await logActivity({
+      projectId: id as string,
+      type: newStatus === ProjectStatus.DISPUTE ? ActivityType.DISPUTE_RAISED : ActivityType.AGENT_UNASSIGNED,
+      message: `Agent was unassigned. Reason: ${reason}`,
+      actorId: user.id,
+    });
+
+    return res.status(200).json({ status: newStatus, message: 'Agent unassigned successfully.' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** POST /projects/:id/assign-agent */
+export const assignAgent = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const user = req.user!;
+    const { newAgentId } = req.body;
+
+    const { data: project, error: fetchError } = await supabase
+      .from('projects')
+      .select('id, sender_id, agent_id, status')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (!project) return notFound(res, 'Project');
+    if (project.sender_id !== user.id) return forbidden(res);
+    
+    if (project.status !== ProjectStatus.AGENT_UNASSIGNED && project.status !== ProjectStatus.DISPUTE) {
+      return res.status(400).json(buildError('invalid_state', 'Project must be unassigned or in dispute to assign a new agent.', 'status'));
+    }
+
+    // Verify agent exists and is verified
+    const { data: agent, error: agentError } = await supabase
+      .from('agents')
+      .select('id, verified')
+      .eq('id', newAgentId)
+      .maybeSingle();
+
+    if (agentError || !agent) {
+      return res.status(400).json(buildError('validation_error', 'The specified agent does not exist.', 'newAgentId'));
+    }
+    if (!agent.verified) {
+      return res.status(400).json(buildError('validation_error', 'The specified agent is not verified.', 'newAgentId'));
+    }
+
+    // Determine what status to resume to
+    const { data: milestones } = await supabase
+      .from('milestones')
+      .select('status, due_date')
+      .eq('project_id', id);
+    
+    let resumeStatus: string = ProjectStatus.ON_TRACK;
+    const today = new Date().toISOString().split('T')[0];
+    const hasOverdue = (milestones ?? []).some((m: any) => 
+      ['pending', 'in_progress', 'flagged'].includes(m.status) && m.due_date < today
+    );
+    if (hasOverdue) resumeStatus = ProjectStatus.ATTENTION_NEEDED;
+
+    const { error: updateError } = await supabase
+      .from('projects')
+      .update({
+        agent_id: newAgentId,
+        status: resumeStatus,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id);
+
+    if (updateError) throw updateError;
+
+    await logActivity({
+      projectId: id as string,
+      type: ActivityType.AGENT_ASSIGNED,
+      message: `A new agent was assigned to the project.`,
+      actorId: user.id,
+    });
+
+    return res.status(200).json({ status: resumeStatus, message: 'New agent assigned successfully.' });
+  } catch (err) {
+    next(err);
+  }
 };

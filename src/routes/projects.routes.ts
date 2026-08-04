@@ -6,6 +6,10 @@ import {
   patchProject,
   createProjectSchema,
   patchProjectSchema,
+  unassignAgent,
+  assignAgent,
+  unassignAgentSchema,
+  assignAgentSchema,
 } from '../controllers/projects.controller';
 import { listProjectActivity } from '../controllers/activity.controller';
 import { listProjectProofs } from '../controllers/proofs.controller';
@@ -24,6 +28,10 @@ router.get('/', authenticate, listProjects);
 router.get('/:id', authenticate, getProject);
 router.post('/', authenticate, requireRole(Role.SENDER), validate(createProjectSchema), createProject);
 router.patch('/:id', authenticate, requireRole(Role.SENDER), validate(patchProjectSchema), patchProject);
+
+// Agent Management
+router.post('/:id/unassign-agent', authenticate, requireRole(Role.SENDER), validate(unassignAgentSchema), unassignAgent);
+router.post('/:id/assign-agent', authenticate, requireRole(Role.SENDER), validate(assignAgentSchema), assignAgent);
 
 // Sub-resources
 router.get('/:id/milestones', authenticate, (req, res, next) => {

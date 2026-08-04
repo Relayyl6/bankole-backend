@@ -22,6 +22,8 @@ export const ProjectStatus = {
   AWAITING_REVIEW: 'awaiting_review',
   ATTENTION_NEEDED: 'attention_needed',
   COMPLETED: 'completed',
+  DISPUTE: 'dispute',
+  AGENT_UNASSIGNED: 'agent_unassigned',
 } as const;
 export type ProjectStatus = (typeof ProjectStatus)[keyof typeof ProjectStatus];
 
@@ -79,6 +81,9 @@ export const ActivityType = {
   DOCUMENT_UPLOADED: 'document_uploaded',
   MESSAGE_SENT: 'message_sent',
   STAGE_UPDATED: 'stage_updated',
+  AGENT_UNASSIGNED: 'agent_unassigned',
+  AGENT_ASSIGNED: 'agent_assigned',
+  DISPUTE_RAISED: 'dispute_raised',
 } as const;
 export type ActivityType = (typeof ActivityType)[keyof typeof ActivityType];
 

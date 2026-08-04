@@ -761,4 +761,31 @@ Returns `200`:
 ```
 *(Status can be `pending` or `completed`)*
 
+### `POST /projects/:id/unassign-agent` **[P1]**
+
+Allows a sender to fire or unassign an agent from a project. The system enforces strict guard rails:
+- If a milestone is `proof_submitted`, the request is rejected with `409 Conflict`.
+- If a milestone is `in_progress` (or if requested explicitly), the project is placed in a `dispute` lock freezing escrow until resolution.
+
+**Requires Authentication:** Bearer token (`Authorization: Bearer <access_token>`), Role: `sender`
+
+```json
+{
+  "reason": "Agent abandoned the site.",
+  "requestDispute": true
+}
+```
+
+### `POST /projects/:id/assign-agent` **[P1]**
+
+Allows a sender to assign a new agent to an unassigned or disputed project. The new agent inherits the uncompleted portion of the project's supervision fee.
+
+**Requires Authentication:** Bearer token (`Authorization: Bearer <access_token>`), Role: `sender`
+
+```json
+{
+  "newAgentId": "agt_456"
+}
+```
+
 > **Note on Retrieval:** There are no standalone `GET` endpoints for credentials, portfolio items, or reviews. In line with the original spec, these arrays are heavily aggregated and seamlessly embedded into the `GET /agents/:id` payload to allow the workspace to load the entire profile in a single network request.
