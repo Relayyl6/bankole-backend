@@ -48,7 +48,7 @@ List endpoints return a data array and a `meta` object.
 ## Enumerations
 * **role**: `sender` | `agent`
 * **assetType**: `house` | `shop` | `clinic` | `borehole` | `school` | `land` | `community`
-* **projectStatus**: `on_track` | `awaiting_review` | `attention_needed` | `completed`
+* **projectStatus**: `on_track` | `awaiting_review` | `attention_needed` | `completed` | `dispute` | `agent_unassigned`
 * **milestoneStatus**: `pending` | `in_progress` | `proof_submitted` | `approved` | `released` | `flagged`
 * **proofType**: `photo` | `video`
 * **proofStatus**: `pending_review` | `approved` | `flagged`
@@ -190,6 +190,7 @@ Creates a new project and its milestone schedule.
   - `agentId` (string, required): UUID of a verified agent.
   - `currency` (enum: `"NGN"`, required): Operating currency.
   - `totalBudget` (number, required): In minor units (e.g. kobo).
+  - `supervisionFeePercentage` (number, optional): Agent's cut of the budget (0 to 100). Escrow releases will automatically deduct this percentage proportionally.
   - `scope` (string, required): Detailed description of the project requirements.
   - `milestones` (array of objects, required):
     - `order` (number, required): Ascending integer starting at 1.
@@ -222,6 +223,23 @@ Updates high-level project details.
   - `scope` (string, optional): Update project scope.
   - `currentStage` (string, optional): Update the string label for the current stage.
 - **Response `200 OK`**
+
+### `POST /projects/:id/unassign-agent`
+Removes an agent from a project.
+- **Headers**: 
+  - `Authorization: Bearer <access_token>` (Sender only)
+- **Body (JSON)**:
+  - `reason` (string, required): Why the agent is being fired.
+  - `requestDispute` (boolean, optional): Set to true to force the project into a dispute lock. (Defaults to false unless a milestone is mid-progress).
+- **Response `200 OK`**: Updates project status to `agent_unassigned` or `dispute`. Rejects with `409 Conflict` if a proof is pending review.
+
+### `POST /projects/:id/assign-agent`
+Brings a new agent onto a project that is unassigned or in dispute.
+- **Headers**: 
+  - `Authorization: Bearer <access_token>` (Sender only)
+- **Body (JSON)**:
+  - `newAgentId` (string, required): The ID of the replacement verified agent.
+- **Response `200 OK`**: The new agent inherits the uncompleted portion of the project's supervision fee.
 
 ---
 

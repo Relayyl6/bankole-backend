@@ -99,7 +99,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         review_count: 0,
         completed_projects: 0,
         years_experience: 0,
-        verified: false,
+        verified: true,
         avatar_url: null,
       });
     }
