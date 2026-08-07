@@ -15,6 +15,7 @@ import { listProjectActivity } from '../controllers/activity.controller';
 import { listProjectProofs } from '../controllers/proofs.controller';
 import { listDocuments, uploadDocument, uploadDocumentSchema } from '../controllers/documents.controller';
 import { listMessages, createMessage, createMessageSchema } from '../controllers/messages.controller';
+import { inviteCoFunder, inviteCoFunderSchema } from '../controllers/cofunding.controller';
 import { authenticate, requireRole } from '../middlewares/auth.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { uploadLimiter } from '../middlewares/rateLimiter.middleware';
@@ -32,6 +33,9 @@ router.patch('/:id', authenticate, requireRole(Role.SENDER), validate(patchProje
 // Agent Management
 router.post('/:id/unassign-agent', authenticate, requireRole(Role.SENDER), validate(unassignAgentSchema), unassignAgent);
 router.post('/:id/assign-agent', authenticate, requireRole(Role.SENDER), validate(assignAgentSchema), assignAgent);
+
+// Co-funding
+router.post('/:id/co-funders', authenticate, requireRole(Role.SENDER), validate(inviteCoFunderSchema), inviteCoFunder);
 
 // Sub-resources
 router.get('/:id/milestones', authenticate, (req, res, next) => {

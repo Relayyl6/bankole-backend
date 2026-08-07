@@ -8,10 +8,22 @@ import routes from './routes';
 const app = express();
 
 // ─── Global Middlewares ───────────────────────────────────────────────────────
+const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
 
 app.use(
   cors({
-    origin: env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, server probes)
+      if (!origin) return callback(null, true);
+      
+      if (
+        allowedOrigins.includes(origin) ||
+        env.NODE_ENV === 'development' && origin.startsWith('http://localhost')
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],

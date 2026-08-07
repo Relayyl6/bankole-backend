@@ -652,10 +652,16 @@ Allows an authenticated user to update their own profile. Automatically updates 
 {
   "fullName": "Adaeze Nwosu",
   "country": "NG",
+  "phoneNumber": "+2348012345678",
+  "currencyPreference": "NGN",
+  "timezone": "Africa/Lagos",
   "bio": "Expert structural engineer with a focus on sustainable materials.",
   "specialties": ["Foundation", "Concrete", "Roofing"],
   "yearsExperience": 8,
-  "avatarUrl": "https://example.com/avatar.jpg"
+  "avatarUrl": "https://example.com/avatar.jpg",
+  "companyName": "Nwosu Builders Ltd",
+  "portfolioUrl": "https://adaezenwosu.com",
+  "availabilityStatus": "Available"
 }
 ```
 
@@ -676,6 +682,9 @@ Returns `200`:
     "email": "adaeze.nwosu.test@gmail.com",
     "role": "agent",
     "country": "NG",
+    "phoneNumber": "+2348012345678",
+    "currencyPreference": "NGN",
+    "timezone": "Africa/Lagos",
     "createdAt": "2026-08-04T12:00:00Z",
     "agentDetails": {
       "bio": "Expert structural engineer with a focus on sustainable materials.",
@@ -686,6 +695,9 @@ Returns `200`:
       ],
       "yearsExperience": 8,
       "avatarUrl": "https://example.com/avatar.jpg",
+      "companyName": "Nwosu Builders Ltd",
+      "portfolioUrl": "https://adaezenwosu.com",
+      "availabilityStatus": "Available",
       "verified": false,
       "rating": 0,
       "reviewCount": 0,

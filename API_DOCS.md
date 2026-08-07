@@ -30,10 +30,12 @@ Any failure returns a consistent error envelope.
 * **500 Internal Server Error**: Unhandled backend exception.
 
 ### Pagination Envelope (Collections)
-List endpoints return a data array and a `meta` object.
+List endpoints return a `data` array and a `meta` object.
 ```json
 {
-  "data": [ ... ],
+  "data": [
+    { ... }
+  ],
   "meta": {
     "page": 1,
     "perPage": 20,
@@ -62,23 +64,29 @@ List endpoints return a data array and a `meta` object.
 Creates a new user and returns a token pair.
 - **Headers**: None
 - **Body (JSON)**:
-  - `fullName` (string, required): Full name of the user.
-  - `email` (string, required): Valid, unique email address (Returns 409 if exists).
-  - `password` (string, required): Minimum 8 characters.
-  - `role` (enum: `"sender" | "agent"`, required).
-  - `country` (string, required): ISO country code (e.g., "NG", "GB").
+  ```json
+  {
+    "fullName": "Jane Doe",
+    "email": "jane@example.com",
+    "password": "strongpassword123",
+    "role": "sender",
+    "country": "GB",
+    "phoneNumber": "+44123456789"
+  }
+  ```
 - **Response `201 Created`**:
   ```json
   {
-    "accessToken": "...",
-    "refreshToken": "...",
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5...",
+    "refreshToken": "v1.MjQ...",
     "expiresIn": 3600,
     "user": {
-      "id": "...",
-      "fullName": "...",
-      "email": "...",
+      "id": "usr_abc123",
+      "fullName": "Jane Doe",
+      "email": "jane@example.com",
       "role": "sender",
-      "country": "GB"
+      "country": "GB",
+      "phoneNumber": "+44123456789"
     }
   }
   ```
@@ -87,39 +95,105 @@ Creates a new user and returns a token pair.
 Authenticates an existing user.
 - **Headers**: None
 - **Body (JSON)**:
-  - `email` (string, required): The user's registered email.
-  - `password` (string, required): The user's password.
+  ```json
+  {
+    "email": "jane@example.com",
+    "password": "strongpassword123"
+  }
+  ```
 - **Response `200 OK`**: Same payload structure as `/auth/register`.
 
 ### `GET /auth/me`
 Fetches the currently authenticated user's profile.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Required)
-- **Response `200 OK`**: The fully hydrated User profile object.
+- **Headers**: `Authorization: Bearer <access_token>`
+- **Response `200 OK`**:
+  ```json
+  {
+    "id": "usr_abc123",
+    "fullName": "Jane Doe",
+    "email": "jane@example.com",
+    "role": "sender",
+    "country": "GB"
+  }
+  ```
 
 ### `PATCH /auth/me`
 Updates the authenticated user's profile.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Required)
+- **Headers**: `Authorization: Bearer <access_token>`
 - **Body (JSON)**:
-  - `fullName` (string, optional): Update the user's name.
-  - `country` (string, optional): Update the user's country code.
-  - `bio` (string, optional): Agent's biography *(Silently ignored if caller is a Sender)*.
-  - `specialties` (array of strings, optional): List of construction specialties *(Agent only)*.
-  - `yearsExperience` (number, optional): Total years of experience *(Agent only)*.
-  - `avatarUrl` (string, optional): URL to a hosted avatar image *(Agent only)*.
-- **Response `200 OK`**: Fully hydrated profile object including `agentDetails`.
+  ```json
+  {
+    "fullName": "Jane Doe Updated",
+    "country": "GB",
+    "phoneNumber": "+44123456789",
+    "currencyPreference": "NGN",
+    "timezone": "Europe/London",
+    "bio": "Expert structural engineer...",
+    "specialties": ["Foundation", "Roofing"],
+    "yearsExperience": 8,
+    "avatarUrl": "https://example.com/avatar.jpg",
+    "companyName": "Jane Builds Ltd",
+    "portfolioUrl": "https://janebuilds.com",
+    "availabilityStatus": "Busy"
+  }
+  ```
+- **Response `200 OK`**: 
+  ```json
+  {
+    "message": "Profile updated successfully.",
+    "updatedFields": {
+      "usersUpdated": true,
+      "agentsUpdated": true
+    },
+    "profile": {
+      "id": "usr_abc123",
+      "fullName": "Jane Doe Updated",
+      "email": "jane@example.com",
+      "role": "agent",
+      "country": "GB",
+      "phoneNumber": "+44123456789",
+      "currencyPreference": "NGN",
+      "timezone": "Europe/London",
+      "createdAt": "2026-08-04T12:00:00Z",
+      "agentDetails": {
+        "bio": "Expert structural engineer...",
+        "specialties": ["Foundation", "Roofing"],
+        "yearsExperience": 8,
+        "avatarUrl": "https://example.com/avatar.jpg",
+        "verified": true,
+        "rating": 4.5,
+        "reviewCount": 12,
+        "completedProjects": 5,
+        "companyName": "Jane Builds Ltd",
+        "portfolioUrl": "https://janebuilds.com",
+        "availabilityStatus": "Busy"
+      }
+    }
+  }
+  ```
 
 ### `POST /auth/refresh`
 Refreshes an expired access token.
 - **Headers**: None
 - **Body (JSON)**:
-  - `refreshToken` (string, required): A valid, unexpired refresh token.
+  ```json
+  {
+    "refreshToken": "v1.MjQ..."
+  }
+  ```
 - **Response `200 OK`**: 
   ```json
   { 
-    "accessToken": "...", 
-    "refreshToken": "..." 
+    "accessToken": "eyJhb...", 
+    "refreshToken": "v1.MjQ...",
+    "expiresIn": 3600,
+    "user": {
+      "id": "usr_abc123",
+      "fullName": "Jane Doe",
+      "email": "jane@example.com",
+      "role": "sender",
+      "country": "GB"
+    }
   }
   ```
 
@@ -129,158 +203,406 @@ Refreshes an expired access token.
 
 ### `GET /agents`
 Searches the directory of agents.
-- **Headers**: None (Public endpoint)
-- **Query Parameters**:
-  - `q` (string, optional): Free text search.
-  - `specialty` (string, optional, repeatable): e.g., `?specialty=house`.
-  - `location` (string, optional): Search by location string.
-  - `minRating` (number, optional): Minimum rating (0.0 to 5.0).
-  - `verifiedOnly` (boolean, optional): Defaults to true.
-  - `sort` (enum: `"rating" | "experience" | "projects"`, optional).
-- **Response `200 OK`**: Envelope `{ "data": [...], "meta": {...} }`.
+- **Query Parameters**: `q`, `specialty`, `location`, `minRating`, `verifiedOnly`, `sort`, `page`, `perPage`.
+- **Response `200 OK`**:
+  ```json
+  {
+    "data": [
+      {
+        "id": "agt_123",
+        "name": "Jane Doe",
+        "initials": "JD",
+        "avatarHue": "hsl(210, 70%, 50%)",
+        "avatarUrl": null,
+        "verified": true,
+        "location": "Lagos",
+        "specialties": ["Foundation", "Concrete"],
+        "rating": 4.8,
+        "reviewCount": 15,
+        "completedProjects": 8,
+        "yearsExperience": 10
+      }
+    ],
+    "meta": {
+      "page": 1,
+      "perPage": 20,
+      "total": 1,
+      "totalPages": 1
+    }
+  }
+  ```
 
 ### `GET /agents/:id`
 Fetches a single agent's comprehensive profile.
-- **Headers**: None (Public endpoint)
-- **Response `200 OK`**: Agent object containing embedded `credentials`, `portfolio`, and `reviews` arrays.
+- **Response `200 OK`**:
+  ```json
+  {
+    "id": "agt_123",
+    "name": "Jane Doe",
+    "initials": "JD",
+    "avatarHue": "hsl(210, 70%, 50%)",
+    "avatarUrl": null,
+    "verified": true,
+    "location": "Lagos",
+    "specialties": ["Foundation", "Concrete"],
+    "rating": 4.8,
+    "reviewCount": 15,
+    "completedProjects": 8,
+    "yearsExperience": 10,
+    "bio": "I am an expert...",
+    "credentials": [
+      {
+        "label": "COREN Certified",
+        "issuer": "COREN",
+        "verifiedOn": "2020-01-01"
+      }
+    ],
+    "portfolio": [
+      {
+        "id": "port_123",
+        "title": "Lekki Duplex",
+        "assetType": "house",
+        "location": "Lekki",
+        "summary": "Completed a 4-bedroom duplex.",
+        "imageUrl": "https://example.com/image.jpg"
+      }
+    ],
+    "reviews": [
+      {
+        "id": "rev_123",
+        "author": "John Smith",
+        "authorLocation": "GB",
+        "body": "Great work on the foundation.",
+        "rating": 5,
+        "date": "2023-05-10T12:00:00Z"
+      }
+    ]
+  }
+  ```
 
 ### `POST /agents/:id/reviews`
-Rates an agent (calculates cumulative moving average atomically).
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Sender only)
+Rates an agent.
+- **Headers**: `Authorization: Bearer <access_token>` (Sender only)
 - **Body (JSON)**:
-  - `quote` (string, required): The text review explaining the rating.
-  - `rating` (number, required): Integer from 1 to 5.
-- **Response `201 Created`**
+  ```json
+  {
+    "quote": "Excellent communication and pacing.",
+    "rating": 5
+  }
+  ```
+- **Response `201 Created`**:
+  ```json
+  {
+    "success": true
+  }
+  ```
 
 ### `POST /agents/:id/credentials`
-Adds a credential to an agent's profile.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Agent only)
+Adds a credential.
+- **Headers**: `Authorization: Bearer <access_token>` (Agent only)
 - **Body (JSON)**:
-  - `label` (string, required): e.g., "Certified Structural Engineer".
-  - `issuer` (string, required): e.g., "COREN".
-  - `verifiedOn` (string, required): Date in YYYY-MM-DD format.
-- **Response `201 Created`**
+  ```json
+  {
+    "label": "Certified Structural Engineer",
+    "issuer": "COREN",
+    "verifiedOn": "2015-06-01"
+  }
+  ```
+- **Response `201 Created`**:
+  ```json
+  {
+    "id": "cred_123",
+    "agent_id": "agt_123",
+    "label": "Certified Structural Engineer",
+    "issuer": "COREN",
+    "verified_on": "2015-06-01"
+  }
+  ```
 
 ### `POST /agents/:id/portfolio`
-Adds a past project to an agent's portfolio.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Agent only)
+Adds a portfolio entry.
+- **Headers**: `Authorization: Bearer <access_token>` (Agent only)
 - **Body (JSON)**:
-  - `title` (string, required): Name of the past project.
-  - `assetType` (string, required): The category of asset (e.g., "house").
-  - `location` (string, required): City/State string.
-  - `summary` (string, required): Brief description of the work completed.
-  - `imageUrl` (string, required): Valid URL to the portfolio image.
-- **Response `201 Created`**
+  ```json
+  {
+    "title": "Mainland Clinic",
+    "assetType": "clinic",
+    "location": "Yaba",
+    "summary": "Built a clinic from scratch.",
+    "imageUrl": "https://example.com/clinic.jpg"
+  }
+  ```
+- **Response `201 Created`**:
+  ```json
+  {
+    "id": "port_123",
+    "agent_id": "agt_123",
+    "title": "Mainland Clinic",
+    "asset_type": "clinic",
+    "location": "Yaba",
+    "summary": "Built a clinic from scratch.",
+    "image_url": "https://example.com/clinic.jpg"
+  }
+  ```
 
 ---
 
 ## 3. Projects
 
 ### `POST /projects`
-Creates a new project and its milestone schedule.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Sender only)
+Creates a new project.
+- **Headers**: `Authorization: Bearer <access_token>` (Sender only)
 - **Body (JSON)**:
-  - `name` (string, required): Name of the project.
-  - `assetType` (enum, required): Type of asset (e.g., "house", "shop").
-  - `location` (object, required): Must contain `label` (string), `lat` (number), `lng` (number).
-  - `agentId` (string, required): UUID of a verified agent.
-  - `currency` (enum: `"NGN"`, required): Operating currency.
-  - `totalBudget` (number, required): In minor units (e.g. kobo).
-  - `supervisionFeePercentage` (number, optional): Agent's cut of the budget (0 to 100). Escrow releases will automatically deduct this percentage proportionally.
-  - `scope` (string, required): Detailed description of the project requirements.
-  - `milestones` (array of objects, required):
-    - `order` (number, required): Ascending integer starting at 1.
-    - `stage` (string, required): Name of the stage (e.g., "Foundation").
-    - `escrowAmount` (number, required): Sum of all milestone amounts MUST exactly equal `totalBudget`.
-    - `dueDate` (string, required): Date in YYYY-MM-DD format.
-- **Response `201 Created`**: The fully hydrated project object.
+  ```json
+  {
+    "name": "Family House",
+    "assetType": "house",
+    "location": {
+      "label": "Ikeja",
+      "lat": 6.6018,
+      "lng": 3.3515
+    },
+    "agentId": "agt_123",
+    "currency": "NGN",
+    "totalBudget": 50000000,
+    "supervisionFeePercentage": 10,
+    "scope": "Build a 4-bedroom bungalow.",
+    "milestones": [
+      {
+        "order": 1,
+        "stage": "Foundation",
+        "escrowAmount": 10000000,
+        "dueDate": "2024-01-01"
+      }
+    ]
+  }
+  ```
+- **Response `201 Created`**:
+  ```json
+  {
+    "id": "prj_123",
+    "name": "Family House",
+    "assetType": "house",
+    "location": {
+      "label": "Ikeja",
+      "lat": 6.6018,
+      "lng": 3.3515
+    },
+    "agent": {
+      "id": "agt_123",
+      "name": "Jane Doe",
+      "initials": "JD",
+      "verified": true
+    },
+    "currency": "NGN",
+    "totalBudget": 50000000,
+    "fundsReleased": 0,
+    "fundsInEscrow": 50000000,
+    "supervisionFeePercentage": 10,
+    "supervisionFeeTotal": 5000000,
+    "supervisionFeePaid": 0,
+    "currentStage": "Foundation",
+    "status": "on_track",
+    "milestoneCount": 1,
+    "milestonesReleased": 0,
+    "startedOn": "2023-10-01",
+    "coverImageUrl": null,
+    "scope": "Build a 4-bedroom bungalow.",
+    "createdAt": "2023-10-01T12:00:00Z",
+    "updatedAt": "2023-10-01T12:00:00Z",
+    "milestones": [
+      {
+        "id": "ms_123",
+        "projectId": "prj_123",
+        "order": 1,
+        "stage": "Foundation",
+        "currency": "NGN",
+        "escrowAmount": 10000000,
+        "status": "in_progress",
+        "dueDate": "2024-01-01",
+        "isOverdue": false,
+        "daysOverdue": 0,
+        "proofCount": 0,
+        "releasedAt": null
+      }
+    ]
+  }
+  ```
 
 ### `GET /projects`
-Fetches projects belonging to the caller.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Required)
-- **Query Parameters**: 
-  - `status` (string, optional)
-  - `assetType` (string, optional)
-- **Response `200 OK`**: Envelope `{ "data": [...], "meta": {...} }`.
+Fetches caller's projects.
+- **Query Parameters**: `status`, `assetType`, `page`, `perPage`.
+- **Response `200 OK`**:
+  ```json
+  {
+    "data": [
+      {
+        "id": "prj_123",
+        "name": "Family House",
+        "assetType": "house",
+        "location": { "label": "Ikeja", "lat": 6.6, "lng": 3.3 },
+        "agent": { "id": "agt_123", "name": "Jane", "initials": "J", "verified": true },
+        "currency": "NGN",
+        "totalBudget": 50000000,
+        "fundsReleased": 0,
+        "fundsInEscrow": 50000000,
+        "supervisionFeePercentage": 10,
+        "supervisionFeeTotal": 5000000,
+        "supervisionFeePaid": 0,
+        "currentStage": "Foundation",
+        "status": "on_track",
+        "milestoneCount": 1,
+        "milestonesReleased": 0,
+        "startedOn": "2023-10-01",
+        "coverImageUrl": null
+      }
+    ],
+    "meta": { "page": 1, "perPage": 20, "total": 1, "totalPages": 1 }
+  }
+  ```
 
 ### `GET /projects/:id`
 Fetches a single project workspace.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Required)
-- **Response `200 OK`**: Project object including an embedded `milestones` array.
+- **Response `200 OK`**: Exactly matches the `201 Created` response payload from `POST /projects`.
 
 ### `PATCH /projects/:id`
 Updates high-level project details.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Sender only)
+- **Headers**: `Authorization: Bearer <access_token>` (Sender only)
 - **Body (JSON)**:
-  - `name` (string, optional): Update project name.
-  - `scope` (string, optional): Update project scope.
-  - `currentStage` (string, optional): Update the string label for the current stage.
-- **Response `200 OK`**
+  ```json
+  {
+    "name": "Updated Name",
+    "scope": "Updated Scope",
+    "currentStage": "Roofing"
+  }
+  ```
+- **Response `200 OK`**:
+  ```json
+  {
+    "id": "prj_123",
+    "name": "Updated Name",
+    "scope": "Updated Scope",
+    "currentStage": "Roofing",
+    "updatedAt": "2023-10-02T12:00:00Z"
+  }
+  ```
 
 ### `POST /projects/:id/unassign-agent`
 Removes an agent from a project.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Sender only)
+- **Headers**: `Authorization: Bearer <access_token>` (Sender only)
 - **Body (JSON)**:
-  - `reason` (string, required): Why the agent is being fired.
-  - `requestDispute` (boolean, optional): Set to true to force the project into a dispute lock. (Defaults to false unless a milestone is mid-progress).
-- **Response `200 OK`**: Updates project status to `agent_unassigned` or `dispute`. Rejects with `409 Conflict` if a proof is pending review.
+  ```json
+  {
+    "reason": "Agent abandoned the site.",
+    "requestDispute": true
+  }
+  ```
+- **Response `200 OK`**: 
+  ```json
+  {
+    "status": "dispute",
+    "message": "Agent unassigned successfully."
+  }
+  ```
 
 ### `POST /projects/:id/assign-agent`
 Brings a new agent onto a project that is unassigned or in dispute.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Sender only)
+- **Headers**: `Authorization: Bearer <access_token>` (Sender only)
 - **Body (JSON)**:
-  - `newAgentId` (string, required): The ID of the replacement verified agent.
-- **Response `200 OK`**: The new agent inherits the uncompleted portion of the project's supervision fee.
+  ```json
+  {
+    "newAgentId": "agt_456"
+  }
+  ```
+- **Response `200 OK`**:
+  ```json
+  {
+    "status": "on_track",
+    "message": "New agent assigned successfully."
+  }
+  ```
 
 ---
 
 ## 4. Milestones & Escrow
 
 ### `GET /projects/:id/milestones`
-Fetches all milestones for a project. The backend dynamically computes `isOverdue` based on server time.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Required)
-- **Response `200 OK`**: Array of milestone objects (Not paginated).
+Fetches all milestones for a project.
+- **Response `200 OK`**:
+  ```json
+  [
+    {
+      "id": "ms_123",
+      "projectId": "prj_123",
+      "order": 1,
+      "stage": "Foundation",
+      "currency": "NGN",
+      "escrowAmount": 10000000,
+      "status": "in_progress",
+      "dueDate": "2024-01-01",
+      "isOverdue": false,
+      "daysOverdue": 0,
+      "proofCount": 1,
+      "releasedAt": null
+    }
+  ]
+  ```
 
 ### `POST /milestones/:id/submit`
 Agent submits a milestone for sender review. 
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Agent only)
+- **Headers**: `Authorization: Bearer <access_token>` (Agent only)
 - **Body**: None
-- **Response `200 OK`**: (Fails with 409 Conflict if `proofCount === 0`).
+- **Response `200 OK`**: Returns the updated Milestone object (same shape as array element in `GET /projects/:id/milestones`). Status changes to `proof_submitted`.
 
 ### `POST /milestones/:id/approve`
 Sender approves a submitted milestone.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Sender only)
+- **Headers**: `Authorization: Bearer <access_token>` (Sender only)
 - **Body (JSON)**:
-  - `note` (string, optional): A text note to append to the permanent activity log.
-- **Response `200 OK`**
+  ```json
+  {
+    "note": "Looks great, approved."
+  }
+  ```
+- **Response `200 OK`**: Returns the updated Milestone object. Status changes to `approved`.
 
 ### `POST /milestones/:id/flag`
 Sender flags a milestone for issues.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Sender only)
+- **Headers**: `Authorization: Bearer <access_token>` (Sender only)
 - **Body (JSON)**:
-  - `reason` (string, required): Detailed reason for flagging the work.
-- **Response `200 OK`**
+  ```json
+  {
+    "reason": "Missing concrete reinforcement."
+  }
+  ```
+- **Response `200 OK`**: Returns the updated Milestone object. Status changes to `flagged`.
 
 ### `POST /milestones/:id/release`
 Releases escrow funds. Atomic and idempotent.
 - **Headers**: 
   - `Authorization: Bearer <access_token>` (Sender only)
-  - `Idempotency-Key: <unique_string>` (Required): Ensures funds are never double-released if the network drops and the client retries the exact same request.
+  - `Idempotency-Key: <unique_string>` (Required)
 - **Body**: None
-- **Response `200 OK`**: `{ "milestone", "fundsReleased", "fundsInEscrow" }`
+- **Response `200 OK`**:
+  ```json
+  {
+    "milestone": {
+      "id": "ms_123",
+      "projectId": "prj_123",
+      "order": 1,
+      "stage": "Foundation",
+      "currency": "NGN",
+      "escrowAmount": 10000000,
+      "status": "released",
+      "dueDate": "2024-01-01",
+      "isOverdue": false,
+      "daysOverdue": 0,
+      "proofCount": 1,
+      "releasedAt": "2024-01-02T12:00:00Z"
+    },
+    "fundsReleased": 10000000,
+    "fundsInEscrow": 40000000
+  }
+  ```
 
 ---
 
@@ -288,74 +610,214 @@ Releases escrow funds. Atomic and idempotent.
 
 ### `POST /milestones/:id/proofs`
 Agent uploads photo/video evidence.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Agent only)
+- **Headers**: `Authorization: Bearer <access_token>` (Agent only)
 - **Body (Multipart/form-data)**:
-  - `file` (binary, required): Max 10MB limit. Allowed MIME types: `image/jpeg`, `image/png`, `video/mp4`.
-  - `caption` (string, required): Agent's description of the photo.
-  - `capturedLat` (number, required): Latitude from the device sensor at the time of capture.
-  - `capturedLng` (number, required): Longitude from the device sensor at the time of capture.
-- **Response `201 Created`**: Returns immediately while AI Verification (Gemini 1.5 Flash) runs in the background.
+  - `file` (binary, required)
+  - `caption` (string, required)
+  - `capturedLat` (number, required)
+  - `capturedLng` (number, required)
+- **Response `201 Created`**: 
+  ```json
+  {
+    "id": "prf_123",
+    "projectId": "prj_123",
+    "milestoneId": "ms_123",
+    "type": "photo",
+    "caption": "Foundation poured.",
+    "fileUrl": "https://bucket/proof.jpg",
+    "thumbnailUrl": null,
+    "capturedAt": "2024-01-01T10:00:00Z",
+    "uploadedAt": "2024-01-01T10:05:00Z",
+    "geo": {
+      "lat": 6.6018,
+      "lng": 3.3515
+    },
+    "verification": null,
+    "status": "pending_review"
+  }
+  ```
 
 ### `GET /proofs/:id/verification`
 Polls the background AI Verification status.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Required)
-- **Response `200 OK`**: `{ "status": "completed", "verification": {...} }`
+- **Response `200 OK`**:
+  ```json
+  {
+    "status": "completed",
+    "verification": {
+      "hasExifGps": true,
+      "distanceFromSiteMetres": 14,
+      "withinSiteRadius": true,
+      "capturedBeforeMilestoneStart": false,
+      "clientMismatch": false,
+      "verdict": "verified_on_site"
+    }
+  }
+  ```
+*(Status can be `pending` or `completed`)*
 
 ### `GET /projects/:id/proofs`
 Lists all proofs for a project.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Required)
-- **Query Parameters**: 
-  - `milestoneId` (string, optional)
-  - `status` (string, optional)
-- **Response `200 OK`**: Envelope `{ "data": [...], "meta": {...} }`.
+- **Query Parameters**: `milestoneId`, `status`, `page`, `perPage`.
+- **Response `200 OK`**:
+  ```json
+  {
+    "data": [
+      {
+        "id": "prf_123",
+        "projectId": "prj_123",
+        "milestoneId": "ms_123",
+        "type": "photo",
+        "caption": "Foundation poured.",
+        "fileUrl": "https://bucket/proof.jpg",
+        "thumbnailUrl": null,
+        "capturedAt": "2024-01-01T10:00:00Z",
+        "uploadedAt": "2024-01-01T10:05:00Z",
+        "geo": { "lat": 6.6, "lng": 3.3 },
+        "verification": {
+          "verdict": "verified_on_site"
+        },
+        "status": "approved"
+      }
+    ],
+    "meta": { "page": 1, "perPage": 20, "total": 1, "totalPages": 1 }
+  }
+  ```
 
 ### `POST /proofs/:id/approve` | `POST /proofs/:id/flag`
 Approves or flags individual proofs.
-- **Headers**: 
-  - `Authorization: Bearer <access_token>` (Sender only)
+- **Headers**: `Authorization: Bearer <access_token>` (Sender only)
 - **Body (JSON for `/flag` only)**:
-  - `reason` (string, required): Reason for flagging the specific photo.
+  ```json
+  {
+    "reason": "Too blurry."
+  }
+  ```
+- **Response `200 OK`**: Returns the updated Proof object.
 
 ---
 
 ## 6. Documents, Messaging, Activity & Dashboard
 
-### `GET /projects/:id/documents` | `DELETE /documents/:id`
-Manages project files. 
-- **Headers**: `Authorization: Bearer <access_token>`
+### `GET /projects/:id/documents`
+Lists documents for a project.
+- **Query Parameters**: `page`, `perPage`.
+- **Response `200 OK`**:
+  ```json
+  {
+    "data": [
+      {
+        "id": "doc_123",
+        "projectId": "prj_123",
+        "name": "Contract.pdf",
+        "kind": "contract",
+        "fileUrl": "https://bucket/contract.pdf",
+        "sizeBytes": 102400,
+        "uploadedBy": {
+          "id": "usr_123",
+          "name": "Jane Doe"
+        },
+        "uploadedOn": "2023-10-01T12:00:00Z"
+      }
+    ],
+    "meta": { "page": 1, "perPage": 20, "total": 1, "totalPages": 1 }
+  }
+  ```
 
 ### `POST /projects/:id/documents`
 Uploads a document.
 - **Headers**: `Authorization: Bearer <access_token>`
 - **Body (Multipart/form-data)**:
   - `file` (binary, required)
-  - `name` (string, required): Name of the document.
-  - `kind` (enum, required): `"contract"`, `"receipt"`, `"verification_record"`, `"permit"`, `"other"`.
+  - `name` (string, required)
+  - `kind` (enum: `"contract"`, `"receipt"`, `"verification_record"`, `"permit"`, `"other"`)
+- **Response `201 Created`**: Returns the Document object shown in `GET /projects/:id/documents`.
+
+### `DELETE /documents/:id`
+Deletes a document.
+- **Response `204 No Content`**
 
 ### `GET /projects/:id/messages`
-Fetches the chronological chat thread for a project. (Bankole uses REST polling).
-- **Headers**: `Authorization: Bearer <access_token>`
-- **Query Params**: 
-  - `page` (number, optional)
-  - `limit` (number, optional, defaults to 50).
-- **Response `200 OK`**: Envelope with `data` array and `meta` object.
+Fetches the chronological chat thread for a project.
+- **Query Parameters**: `page`, `perPage`.
+- **Response `200 OK`**:
+  ```json
+  {
+    "data": [
+      {
+        "id": "msg_123",
+        "projectId": "prj_123",
+        "author": {
+          "id": "usr_123",
+          "name": "Jane Doe",
+          "role": "sender"
+        },
+        "body": "Hi, how is the foundation going?",
+        "createdAt": "2024-01-01T12:00:00Z"
+      }
+    ],
+    "meta": { "page": 1, "perPage": 20, "total": 1, "totalPages": 1 }
+  }
+  ```
 
 ### `POST /projects/:id/messages`
 Sends a new message.
-- **Headers**: `Authorization: Bearer <access_token>`
 - **Body (JSON)**:
-  - `body` (string, required): The text of the message.
-- **Response `201 Created`**
+  ```json
+  {
+    "body": "The foundation is going great!"
+  }
+  ```
+- **Response `201 Created`**: Returns the Message object shown above.
 
 ### `GET /projects/:id/activity`
-Chronological audit trail of all project events (read-only side-effects).
-- **Headers**: `Authorization: Bearer <access_token>`
-- **Response `200 OK`**: Envelope with `data` array of Activity objects.
+Chronological audit trail of all project events.
+- **Query Parameters**: `page`, `perPage`.
+- **Response `200 OK`**:
+  ```json
+  {
+    "data": [
+      {
+        "id": "act_123",
+        "projectId": "prj_123",
+        "type": "milestone_approved",
+        "message": "Milestone Foundation has been approved.",
+        "actor": {
+          "id": "usr_123",
+          "name": "Jane Doe",
+          "role": "sender"
+        },
+        "createdAt": "2024-01-01T12:00:00Z"
+      }
+    ],
+    "meta": { "page": 1, "perPage": 20, "total": 1, "totalPages": 1 }
+  }
+  ```
 
 ### `GET /dashboard/summary`
 Calculates high-level stats across all caller's projects.
-- **Headers**: `Authorization: Bearer <access_token>`
-- **Response `200 OK`**: `{ "currency", "projectCount", "totalBudget", "totalReleased", "totalInEscrow", "awaitingYourReview", "attentionNeeded", "recentActivity": [...] }`
+- **Response `200 OK`**: 
+  ```json
+  {
+    "currency": "NGN",
+    "projectCount": 5,
+    "totalBudget": 250000000,
+    "totalReleased": 100000000,
+    "totalInEscrow": 150000000,
+    "awaitingYourReview": 2,
+    "attentionNeeded": 0,
+    "recentActivity": [
+      {
+        "id": "act_123",
+        "projectId": "prj_123",
+        "type": "milestone_approved",
+        "message": "Milestone Foundation has been approved.",
+        "actor": {
+          "id": "usr_123",
+          "name": "Jane Doe",
+          "role": "sender"
+        },
+        "createdAt": "2024-01-01T12:00:00Z"
+      }
+    ]
+  }
+  ```

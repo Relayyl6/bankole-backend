@@ -6,6 +6,8 @@ import milestoneRoutes from './milestones.routes';
 import proofRoutes from './proofs.routes';
 import dashboardRoutes from './dashboard.routes';
 import documentRoutes from './documents.routes';
+import paymentsRoutes from './payments.routes';
+import dmRoutes from './dm.routes';
 
 const router = Router();
 
@@ -17,5 +19,7 @@ router.use('/milestones', milestoneRoutes);
 router.use('/proofs', proofRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/documents', documentRoutes);
+router.use('/payments', paymentsRoutes);
+router.use('/messages', dmRoutes);
 
 export default router;

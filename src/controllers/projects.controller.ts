@@ -25,11 +25,11 @@ export const createProjectSchema = z.object({
   name: z.string().min(2),
   assetType: z.enum(Object.values(AssetType) as [string, ...string[]]),
   location: coordinatesSchema,
-  agentId: z.string().min(1),
+  agentId: z.string().min(1).optional().nullable(),
   currency: z.enum(Object.values(Currency) as [string, ...string[]]),
   totalBudget: z.number().int().positive(),
   supervisionFeePercentage: z.number().min(0).max(100).optional().default(0),
-  scope: z.string().min(10),
+  scope: z.string().min(10, "Please type in a detailed scope of project for our agents to review"),
   milestones: z.array(milestoneInputSchema).min(1, 'At least one milestone is required.'),
 });
 
@@ -200,23 +200,30 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
       return res.status(400).json(buildError('validation_error', validation.message!, validation.field));
     }
 
-    // Verify agent exists and is verified
-    const { data: agent, error: agentError } = await supabase
-      .from('agents')
-      .select('id, name, initials, verified')
-      .eq('id', agentId)
-      .maybeSingle();
+    let verifiedAgent = null;
 
-    if (agentError || !agent) {
-      return res.status(400).json(buildError('validation_error', 'The specified agent does not exist.', 'agentId'));
-    }
-    if (!agent.verified) {
-      return res.status(400).json(buildError('validation_error', 'The specified agent is not verified.', 'agentId'));
+    // Verify agent exists and is verified
+    if (agentId) {
+      const { data: agent, error: agentError } = await supabase
+        .from('agents')
+        .select('id, name, initials, verified')
+        .eq('id', agentId)
+        .maybeSingle();
+
+      if (agentError || !agent) {
+        return res.status(400).json(buildError('validation_error', 'The specified agent does not exist.', 'agentId'));
+      }
+      if (!agent.verified) {
+        return res.status(400).json(buildError('validation_error', 'The specified agent is not verified.', 'agentId'));
+      }
+      verifiedAgent = agent;
     }
 
     // Create project
     const firstMilestone = [...milestones].sort((a, b) => a.order - b.order)[0];
     const now = new Date().toISOString();
+
+    const feePercentage = supervisionFeePercentage ?? 10;
 
     const { data: project, error: projectError } = await supabase
       .from('projects')
@@ -226,7 +233,7 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
         location_label: location.label,
         location_lat: location.lat,
         location_lng: location.lng,
-        agent_id: agentId,
+        agent_id: agentId || null,
         sender_id: user.id,
         currency,
         total_budget: totalBudget,
@@ -236,7 +243,7 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
         supervision_fee_total: Math.floor((totalBudget * supervisionFeePercentage) / 100),
         supervision_fee_paid: 0,
         current_stage: firstMilestone.stage,
-        status: ProjectStatus.ON_TRACK,
+        status: agentId ? ProjectStatus.ON_TRACK : ProjectStatus.AGENT_UNASSIGNED,
         scope,
         milestone_count: milestones.length,
         milestones_released: 0,
@@ -270,7 +277,7 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
     await logActivity({
       projectId: project.id,
       type: ActivityType.PROJECT_CREATED,
-      message: `Project "${name}" was created.`,
+      message: agentId ? `Project "${name}" was created.` : `Project "${name}" was published to the marketplace.`,
       actorId: user.id,
     });
 
@@ -284,7 +291,7 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
     const today = new Date();
 
     return res.status(201).json({
-      ...formatProjectSummary(project, agent),
+      ...formatProjectSummary(project, verifiedAgent),
       scope: project.scope,
       createdAt: project.created_at,
       updatedAt: project.updated_at,
