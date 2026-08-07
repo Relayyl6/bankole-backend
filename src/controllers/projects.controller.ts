@@ -62,6 +62,7 @@ const formatProjectSummary = (p: any, agent: any) => ({
     verified: agent?.verified ?? false,
   } : null,
   currency: p.currency,
+  isOpenForBids: p.is_open_for_bids,
   totalBudget: p.total_budget,
   fundsReleased: p.funds_released,
   fundsInEscrow: p.funds_in_escrow,
@@ -111,10 +112,8 @@ export const listProjects = async (req: AuthRequest, res: Response, next: NextFu
   try {
     const user = req.user!;
     const pagination = parsePagination(req.query);
-    const { status, assetType } = req.query as Record<string, string>;
+    const { status, assetType, includeMarketplace } = req.query as Record<string, string>;
 
-    const column = user.role === Role.AGENT ? 'agent_id' : 'sender_id';
-    // Fetch agent by user_id if role is agent
     let agentId: string | null = null;
     if (user.role === Role.AGENT) {
       const { data: agentRow } = await supabase
@@ -125,14 +124,21 @@ export const listProjects = async (req: AuthRequest, res: Response, next: NextFu
       agentId = agentRow?.id ?? null;
     }
 
-    const ownerId = user.role === Role.AGENT ? agentId ?? '' : user.id;
-
     let query = supabase
       .from('projects')
       .select('*, agents!projects_agent_id_fkey(id, name, initials, verified)', { count: 'exact' })
-      .eq(column, ownerId)
       .range(pagination.offset, pagination.offset + pagination.perPage - 1)
       .order('created_at', { ascending: false });
+
+    if (user.role === Role.AGENT) {
+      if (includeMarketplace === 'true') {
+        query = query.or(`agent_id.eq.${agentId ?? '00000000-0000-0000-0000-000000000000'},is_open_for_bids.eq.true`);
+      } else {
+        query = query.eq('agent_id', agentId ?? '00000000-0000-0000-0000-000000000000');
+      }
+    } else {
+      query = query.eq('sender_id', user.id);
+    }
 
     if (status) query = query.eq('status', status);
     if (assetType) query = query.eq('asset_type', assetType);
@@ -244,6 +250,7 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
         supervision_fee_paid: 0,
         current_stage: firstMilestone.stage,
         status: agentId ? ProjectStatus.ON_TRACK : ProjectStatus.AGENT_UNASSIGNED,
+        is_open_for_bids: !agentId,
         scope,
         milestone_count: milestones.length,
         milestones_released: 0,
@@ -429,6 +436,7 @@ export const unassignAgent = async (req: AuthRequest, res: Response, next: NextF
       .update({
         agent_id: null,
         status: newStatus,
+        is_open_for_bids: true,
         updated_at: new Date().toISOString()
       })
       .eq('id', id);
@@ -501,6 +509,7 @@ export const assignAgent = async (req: AuthRequest, res: Response, next: NextFun
       .update({
         agent_id: newAgentId,
         status: resumeStatus,
+        is_open_for_bids: false,
         updated_at: new Date().toISOString()
       })
       .eq('id', id);
