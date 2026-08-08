@@ -17,12 +17,14 @@ app.use(
       if (!origin) return callback(null, true);
       
       if (
+        env.CORS_ORIGIN === '*' ||
         allowedOrigins.includes(origin) ||
-        env.NODE_ENV === 'development' && origin.startsWith('http://localhost')
+        origin.endsWith('.vercel.app') ||
+        (env.NODE_ENV === 'development' && origin.startsWith('http://localhost'))
       ) {
         return callback(null, true);
       }
-      return callback(new Error('Not allowed by CORS'));
+      return callback(new Error(`Not allowed by CORS: ${origin}`));
     },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
