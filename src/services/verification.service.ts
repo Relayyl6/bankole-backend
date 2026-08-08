@@ -104,10 +104,14 @@ export const runVerificationPipeline = async (
     // 0. Integrity
     if (verificationContext.hasExifGps) {
       checks.push({ id: CheckId.INTEGRITY, result: CheckResult.PASS, detail: 'Camera EXIF GPS intact' });
+    } else if (verificationContext.distanceFromSiteMetres !== null) {
+      checks.push({ id: CheckId.INTEGRITY, result: CheckResult.WARN, detail: 'EXIF GPS absent (used browser GPS)' });
+      flags.push({ code: FlagCode.METADATA_STRIPPED, severity: FlagSeverity.MEDIUM, message: 'Image metadata stripped. Relying on browser GPS.' });
+      riskLevel = Math.max(riskLevel === RiskLevel.LOW ? 1 : 2, 2) === 2 ? RiskLevel.MEDIUM : riskLevel; // bump to medium if low
     } else {
       checks.push({ id: CheckId.INTEGRITY, result: CheckResult.FAIL, detail: 'EXIF GPS stripped or absent' });
       flags.push({ code: FlagCode.METADATA_STRIPPED, severity: FlagSeverity.MEDIUM, message: 'Image metadata was stripped or unavailable.' });
-      riskLevel = Math.max(riskLevel === RiskLevel.LOW ? 1 : 2, 2) === 2 ? RiskLevel.MEDIUM : riskLevel; // bump to medium if low
+      riskLevel = Math.max(riskLevel === RiskLevel.LOW ? 1 : 2, 2) === 2 ? RiskLevel.MEDIUM : riskLevel;
     }
 
     if (verificationContext.clientMismatch) {

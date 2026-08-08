@@ -80,11 +80,21 @@ export const verifyProof = (params: {
   clientLng: number | null;
   clientCapturedAt: Date | null;
 }): VerificationResult => {
-  const { exif, siteLat, siteLng, milestoneCreatedAt, clientLat, clientLng, clientCapturedAt } =
-    params;
+  const { exif, siteLat, siteLng, milestoneCreatedAt, clientLat, clientLng, clientCapturedAt } = params;
   const radiusMetres = env.SITE_RADIUS_METRES;
 
-  if (!exif.hasExifGps || exif.lat === null || exif.lng === null) {
+  let effectiveLat = exif.lat;
+  let effectiveLng = exif.lng;
+  let effectiveCapturedAt = exif.capturedAt;
+
+  // Fallback to browser GPS if EXIF is missing
+  if (!exif.hasExifGps && clientLat !== null && clientLng !== null) {
+    effectiveLat = clientLat;
+    effectiveLng = clientLng;
+    if (clientCapturedAt) effectiveCapturedAt = clientCapturedAt;
+  }
+
+  if (effectiveLat === null || effectiveLng === null) {
     return {
       hasExifGps: false,
       distanceFromSiteMetres: null,
@@ -95,20 +105,20 @@ export const verifyProof = (params: {
     };
   }
 
-  const distance = haversineMetres(exif.lat, exif.lng, siteLat, siteLng);
+  const distance = haversineMetres(effectiveLat, effectiveLng, siteLat, siteLng);
   const withinSiteRadius = distance <= radiusMetres;
 
   // Check if photo was taken before the milestone started (stale proof)
   const capturedBeforeMilestoneStart =
-    exif.capturedAt !== null && exif.capturedAt < milestoneCreatedAt;
+    effectiveCapturedAt !== null && effectiveCapturedAt < milestoneCreatedAt;
 
-  // Detect client/EXIF mismatch (possible spoofing attempt)
+  // Detect client/EXIF mismatch (possible spoofing attempt) ONLY if EXIF is present
   let clientMismatch = false;
-  if (clientLat !== null && clientLng !== null) {
+  if (exif.hasExifGps && exif.lat !== null && exif.lng !== null && clientLat !== null && clientLng !== null) {
     const clientToExifDistance = haversineMetres(exif.lat, exif.lng, clientLat, clientLng);
     if (clientToExifDistance > 100) clientMismatch = true; // >100m discrepancy
   }
-  if (clientCapturedAt !== null && exif.capturedAt !== null) {
+  if (exif.hasExifGps && exif.capturedAt !== null && clientCapturedAt !== null) {
     const timeDiffMs = Math.abs(clientCapturedAt.getTime() - exif.capturedAt.getTime());
     if (timeDiffMs > 5 * 60 * 1000) clientMismatch = true; // >5 min discrepancy
   }
@@ -124,7 +134,7 @@ export const verifyProof = (params: {
   }
 
   return {
-    hasExifGps: true,
+    hasExifGps: exif.hasExifGps,
     distanceFromSiteMetres: Math.round(distance),
     withinSiteRadius,
     capturedBeforeMilestoneStart: capturedBeforeMilestoneStart ?? false,
