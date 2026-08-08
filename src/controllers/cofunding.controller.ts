@@ -21,7 +21,7 @@ export const inviteCoFunder = async (req: AuthRequest, res: Response, next: Next
     // 1. Verify project exists and belongs to this sender
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id, title, sender_id')
+      .select('id, name, total_budget, sender_id')
       .eq('id', projectId)
       .maybeSingle();
 
@@ -65,7 +65,7 @@ export const inviteCoFunder = async (req: AuthRequest, res: Response, next: Next
       email.toLowerCase(),
       token,
       user.fullName || 'A project owner',
-      project.title
+      project.name
     );
 
     return res.status(201).json({

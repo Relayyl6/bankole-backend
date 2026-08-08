@@ -6,15 +6,16 @@ const storage = multer.memoryStorage();
 export const upload = multer({
   storage,
   limits: {
-    fileSize: 100 * 1024 * 1024, // 100 MB max (videos)
+    fileSize: 100 * 1024 * 1024, // 100 MB max
   },
   fileFilter: (_req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    const allowed = /jpeg|jpg|png|webp|mp4|mov|avi|quicktime/;
-    const mime = allowed.test(file.mimetype);
-    if (mime) {
+    const allowed = /jpeg|jpg|png|webp|mp4|mov|avi|quicktime|pdf|msword|officedocument|text|csv|octet-stream/;
+    const extMatch = /\.(jpeg|jpg|png|webp|mp4|mov|avi|pdf|doc|docx|txt|csv)$/i.test(file.originalname);
+    const mimeMatch = allowed.test(file.mimetype);
+    if (mimeMatch || extMatch) {
       cb(null, true);
     } else {
-      cb(new Error('Unsupported file type. Allowed: images (jpeg, png, webp) and videos (mp4, mov, avi).'));
+      cb(new Error('Unsupported file type. Allowed: images, videos, PDF, and documents.'));
     }
   },
 });

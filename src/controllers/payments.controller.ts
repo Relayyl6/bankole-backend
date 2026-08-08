@@ -42,12 +42,93 @@ export const addBankAccountSchema = z.object({
   accountName: z.string().min(2),
 });
 
+export const resolveBankAccountSchema = z.object({
+  accountNumber: z.string().length(10, 'Account number must be 10 digits'),
+  bankCode: z.string().min(3).max(6),
+});
+
+export const topupWalletSchema = z.object({
+  amount: z.number().int().positive('Top-up amount must be positive'),
+  currency: z.string().default('NGN'),
+});
+
 export const withdrawSchema = z.object({
   amount: z.number().int().positive(),
   currency: z.string().default('NGN'),
   bankAccountId: z.string().uuid(),
   description: z.string().optional().default('Withdrawal'),
 });
+
+/** POST /payments/bank-accounts/resolve — resolves Nigerian bank account name */
+export const resolveBankAccountController = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { accountNumber, bankCode } = req.body;
+    const resolved = await resolveBankAccount(bankCode, accountNumber);
+
+    return res.status(200).json({
+      accountName: resolved.accountName,
+      accountNumber: resolved.accountNumber,
+      bankCode: bankCode,
+      bankName: resolved.bankName,
+    });
+  } catch (err: any) {
+    return res.status(400).json(buildError('bank_resolve_failed', err.message || 'Could not resolve bank account details.'));
+  }
+};
+
+/** POST /payments/topup — Sender virtual wallet top-up */
+export const topupWallet = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const user = req.user!;
+    const { amount, currency } = req.body;
+
+    // 1. Fetch current wallet balance
+    const { data: userProfile, error: profileError } = await supabase
+      .from('users')
+      .select('wallet_balance')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profileError) throw profileError;
+
+    const currentBalance = userProfile?.wallet_balance ? Number(userProfile.wallet_balance) : 0;
+    const newBalance = currentBalance + amount;
+
+    // 2. Update wallet balance
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ wallet_balance: newBalance })
+      .eq('id', user.id);
+
+    if (updateError) throw updateError;
+
+    // 3. Record credit in ledger_transactions
+    const { data: tx, error: txError } = await supabase
+      .from('ledger_transactions')
+      .insert({
+        user_id: user.id,
+        title: 'Wallet Top-up via Virtual Account',
+        amount,
+        currency: currency || 'NGN',
+        type: 'credit',
+      })
+      .select('id')
+      .single();
+
+    if (txError) throw txError;
+
+    return res.status(200).json({
+      success: true,
+      status: 'success',
+      balance: newBalance,
+      amount,
+      currency: currency || 'NGN',
+      transactionId: tx?.id || `tx_topup_${Date.now()}`,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
 export const getCards = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {

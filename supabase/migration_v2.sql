@@ -140,6 +140,7 @@ CREATE POLICY "invites_sender" ON public.project_invites FOR ALL
 -- ================================================================
 
 ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS wallet_balance       BIGINT  NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS phone_number         TEXT,
   ADD COLUMN IF NOT EXISTS avatar_url           TEXT,
   ADD COLUMN IF NOT EXISTS currency_preference  TEXT    NOT NULL DEFAULT 'NGN',
@@ -155,5 +156,85 @@ ALTER TABLE public.users
 ALTER TABLE public.agents
   ADD COLUMN IF NOT EXISTS company_name         TEXT,
   ADD COLUMN IF NOT EXISTS portfolio_url        TEXT,
-  ADD COLUMN IF NOT EXISTS availability_status  TEXT    NOT NULL DEFAULT 'Available';
+  ADD COLUMN IF NOT EXISTS availability_status  TEXT    NOT NULL DEFAULT 'Available',
+  ADD COLUMN IF NOT EXISTS verification_status  TEXT    NOT NULL DEFAULT 'unverified'
+    CHECK (verification_status IN ('unverified', 'pending_review', 'verified', 'rejected')),
+  ADD COLUMN IF NOT EXISTS id_document_url      TEXT,
+  ADD COLUMN IF NOT EXISTS credentials_url      TEXT,
+  ADD COLUMN IF NOT EXISTS reference_url        TEXT,
+  ADD COLUMN IF NOT EXISTS statement            TEXT;
+
+
+-- ================================================================
+-- 5. PROJECTS & SUPERVISION ENHANCEMENTS
+-- ================================================================
+
+ALTER TABLE public.projects
+  ADD COLUMN IF NOT EXISTS supervision_fee_percentage INTEGER DEFAULT 10,
+  ADD COLUMN IF NOT EXISTS supervision_fee_total      BIGINT  DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS supervision_fee_paid       BIGINT  DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS is_open_for_bids           BOOLEAN DEFAULT FALSE;
+
+-- Allow unassigned agent for open bid projects
+ALTER TABLE public.projects ALTER COLUMN agent_id DROP NOT NULL;
+
+-- Update status check constraint if needed
+ALTER TABLE public.projects DROP CONSTRAINT IF EXISTS projects_status_check;
+ALTER TABLE public.projects ADD CONSTRAINT projects_status_check 
+  CHECK (status IN ('on_track', 'awaiting_review', 'attention_needed', 'completed', 'dispute', 'agent_unassigned'));
+
+
+-- ================================================================
+-- 6. AGENT VERIFICATIONS TABLE
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS public.agent_verifications (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  agent_id        UUID        NOT NULL REFERENCES public.agents(id) ON DELETE CASCADE,
+  user_id         UUID        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  id_document_url TEXT        NOT NULL,
+  credentials_url TEXT,
+  reference_url   TEXT,
+  statement       TEXT,
+  status          TEXT        NOT NULL DEFAULT 'pending_review'
+    CHECK (status IN ('pending_review', 'verified', 'rejected')),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.agent_verifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "agent_verifications_own" ON public.agent_verifications FOR ALL
+  USING (user_id = auth.uid());
+
+
+-- ================================================================
+-- 7. MARKETPLACE BIDDING TABLE
+-- ================================================================
+
+CREATE TABLE IF NOT EXISTS public.project_bids (
+  id                      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id              UUID        NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  agent_id                UUID        NOT NULL REFERENCES public.agents(id) ON DELETE CASCADE,
+  proposal                TEXT        NOT NULL,
+  bid_amount              BIGINT      NOT NULL,
+  proposed_duration_weeks INTEGER     NOT NULL DEFAULT 12,
+  status                  TEXT        NOT NULL DEFAULT 'submitted'
+    CHECK (status IN ('submitted', 'accepted', 'rejected', 'withdrawn')),
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_bids_project_id ON public.project_bids(project_id);
+CREATE INDEX IF NOT EXISTS idx_project_bids_agent_id ON public.project_bids(agent_id);
+
+ALTER TABLE public.project_bids ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "project_bids_read" ON public.project_bids FOR SELECT
+  USING (true);
+
+CREATE POLICY "project_bids_write" ON public.project_bids FOR ALL
+  USING (agent_id IN (SELECT id FROM public.agents WHERE user_id = auth.uid()));
+
+
 

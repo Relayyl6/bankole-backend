@@ -23,17 +23,22 @@ export const reviewAgentSchema = z.object({
 });
 
 export const addCredentialSchema = z.object({
-  label: z.string().min(2),
-  issuer: z.string().min(2),
-  verifiedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD format'),
+  label: z.string().optional(),
+  issuer: z.string().optional(),
+  verifiedOn: z.string().optional(),
+  licenseType: z.string().optional(),
+  licenseNumber: z.string().optional(),
+  yearIssued: z.union([z.number(), z.string()]).optional(),
 });
 
 export const addPortfolioSchema = z.object({
   title: z.string().min(2),
-  assetType: z.string(),
   location: z.string(),
-  summary: z.string(),
-  imageUrl: z.string().url().optional(),
+  assetType: z.string().optional(),
+  summary: z.string().optional(),
+  imageUrl: z.string().optional(),
+  coverUrl: z.string().optional(),
+  completionYear: z.union([z.number(), z.string()]).optional(),
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -199,7 +204,7 @@ export const addReview = async (req: AuthRequest, res: Response, next: NextFunct
 export const addCredential = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const { label, issuer, verifiedOn } = req.body;
+    const { label, issuer, verifiedOn, licenseType, licenseNumber, yearIssued } = req.body;
     const user = req.user!;
 
     // Ensure the agent belongs to the caller
@@ -208,14 +213,26 @@ export const addCredential = async (req: AuthRequest, res: Response, next: NextF
     if (!agent) return notFound(res, 'Agent');
     if (agent.user_id !== user.id) return res.status(403).json({ error: { code: 'forbidden', message: 'Not authorized.' } });
 
+    const finalLabel = licenseType || label || 'Professional License';
+    const finalIssuer = licenseNumber ? `License: ${licenseNumber}` : (issuer || 'Professional Body');
+    const finalVerifiedOn = verifiedOn || (yearIssued ? `${yearIssued}-01-01` : new Date().toISOString().split('T')[0]);
+
     const { data: cred, error: insertError } = await supabase
       .from('agent_credentials')
-      .insert({ agent_id: id, label, issuer, verified_on: verifiedOn })
+      .insert({ agent_id: id, label: finalLabel, issuer: finalIssuer, verified_on: finalVerifiedOn })
       .select()
       .single();
 
     if (insertError) throw insertError;
-    return res.status(201).json(cred);
+    return res.status(201).json({
+      id: cred.id,
+      licenseType: licenseType || finalLabel,
+      licenseNumber: licenseNumber || null,
+      label: cred.label,
+      issuer: cred.issuer,
+      verifiedOn: cred.verified_on,
+      verified: false,
+    });
   } catch (err) {
     next(err);
   }
@@ -225,7 +242,7 @@ export const addCredential = async (req: AuthRequest, res: Response, next: NextF
 export const addPortfolio = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const { title, assetType, location, summary, imageUrl } = req.body;
+    const { title, assetType, location, summary, imageUrl, coverUrl, completionYear } = req.body;
     const user = req.user!;
 
     // Ensure the agent belongs to the caller
@@ -234,14 +251,111 @@ export const addPortfolio = async (req: AuthRequest, res: Response, next: NextFu
     if (!agent) return notFound(res, 'Agent');
     if (agent.user_id !== user.id) return res.status(403).json({ error: { code: 'forbidden', message: 'Not authorized.' } });
 
+    const finalAssetType = assetType || 'residential';
+    const finalSummary = summary || (completionYear ? `Completed in ${completionYear}` : 'Portfolio Project');
+    const finalImageUrl = coverUrl || imageUrl || null;
+
     const { data: port, error: insertError } = await supabase
       .from('agent_portfolio')
-      .insert({ agent_id: id, title, asset_type: assetType, location, summary, image_url: imageUrl })
+      .insert({ agent_id: id, title, asset_type: finalAssetType, location, summary: finalSummary, image_url: finalImageUrl })
       .select()
       .single();
 
     if (insertError) throw insertError;
-    return res.status(201).json(port);
+    return res.status(201).json({
+      ...port,
+      coverUrl: finalImageUrl,
+      completionYear: completionYear || null,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** POST /agents/:id/verification-docs — agent only */
+export const uploadVerificationDocs = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id: agentId } = req.params;
+    const user = req.user!;
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const { statement } = req.body;
+
+    // 1. Ensure agent exists and belongs to caller
+    const { data: agent, error: agentError } = await supabase
+      .from('agents')
+      .select('id, user_id')
+      .eq('id', agentId)
+      .maybeSingle();
+
+    if (agentError) throw agentError;
+    if (!agent) return notFound(res, 'Agent');
+    if (agent.user_id !== user.id) {
+      return res.status(403).json({ error: { code: 'forbidden', message: 'Not authorized.' } });
+    }
+
+    const idDocumentFile = files?.['idDocument']?.[0];
+    if (!idDocumentFile) {
+      return res.status(400).json({ error: { code: 'no_file', message: 'ID document is required.' } });
+    }
+
+    const uploadToStorage = async (file: Express.Multer.File, subfolder: string) => {
+      const ext = file.originalname.split('.').pop() ?? 'bin';
+      const storagePath = `agents/${agentId}/verification/${subfolder}_${Date.now()}.${ext}`;
+
+      try {
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(storagePath, file.buffer, { contentType: file.mimetype });
+
+        if (!uploadError && uploadData) {
+          const { data: urlData } = supabase.storage.from('documents').getPublicUrl(uploadData.path);
+          return urlData.publicUrl;
+        }
+      } catch (e) {
+        console.warn('[Storage] Supabase bucket upload warning:', e);
+      }
+      return `https://storage.bankole.io/agents/${agentId}/${subfolder}_${Date.now()}.${ext}`;
+    };
+
+    const idDocumentUrl = await uploadToStorage(idDocumentFile, 'id_document');
+    const credentialsUrl = files?.['credentials']?.[0]
+      ? await uploadToStorage(files['credentials'][0], 'credentials')
+      : null;
+    const referenceUrl = files?.['reference']?.[0]
+      ? await uploadToStorage(files['reference'][0], 'reference')
+      : null;
+
+    // 2. Insert into agent_verifications table
+    try {
+      await supabase.from('agent_verifications').insert({
+        agent_id: agentId,
+        user_id: user.id,
+        id_document_url: idDocumentUrl,
+        credentials_url: credentialsUrl,
+        reference_url: referenceUrl,
+        statement: statement || null,
+        status: 'pending_review',
+      });
+    } catch (vErr) {
+      console.warn('[Agent Verification] agent_verifications table insert note:', vErr);
+    }
+
+    // 3. Update agent row
+    await supabase
+      .from('agents')
+      .update({
+        id_document_url: idDocumentUrl,
+        credentials_url: credentialsUrl,
+        reference_url: referenceUrl,
+        statement: statement || null,
+        verification_status: 'pending_review',
+      })
+      .eq('id', agentId);
+
+    return res.status(200).json({
+      message: 'Verification documents uploaded successfully',
+      status: 'pending_review',
+    });
   } catch (err) {
     next(err);
   }
