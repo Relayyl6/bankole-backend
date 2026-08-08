@@ -21,7 +21,7 @@ export const uploadProofSchema = z.object({
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const formatProof = (p: any) => {
-  const verificationPayload = p.risk_level !== null ? {
+  const verificationPayload = p.risk_level != null ? {
     riskLevel: p.risk_level,
     verdict: p.verdict,
     confidence: p.confidence,
