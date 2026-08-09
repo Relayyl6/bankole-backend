@@ -11,7 +11,7 @@ export const agentQuerySchema = z.object({
   specialty: z.union([z.string(), z.array(z.string())]).optional(),
   location: z.string().optional(),
   minRating: z.coerce.number().min(0).max(5).optional(),
-  verifiedOnly: z.enum(['true', 'false']).optional().default('true'),
+  verifiedOnly: z.enum(['true', 'false']).optional().default('false'),
   sort: z.enum(['rating', 'experience', 'projects']).optional().default('rating'),
   page: z.coerce.number().optional(),
   perPage: z.coerce.number().optional(),
