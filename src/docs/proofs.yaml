@@ -1,5 +1,5 @@
 paths:
-  /api/v1/proofs/{id}:
+  /api/v1/proofs/{id}/verification:
     get:
       summary: Get proof details
       tags: [Proofs]
