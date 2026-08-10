@@ -5,6 +5,7 @@ import {
   approveMilestone,
   flagMilestone,
   releaseMilestone,
+  fundMilestone,
   flagMilestoneSchema,
 } from '../controllers/milestones.controller';
 import { uploadProof, uploadProofSchema } from '../controllers/proofs.controller';
@@ -29,6 +30,7 @@ router.post(
 );
 
 // Milestone lifecycle
+router.post('/:id/fund', authenticate, requireRole(Role.SENDER), fundMilestone);
 router.post('/:id/submit', authenticate, requireRole(Role.AGENT), submitMilestone);
 router.post('/:id/approve', authenticate, requireRole(Role.SENDER), approveMilestone);
 router.post('/:id/flag', authenticate, requireRole(Role.SENDER), validate(flagMilestoneSchema), flagMilestone);

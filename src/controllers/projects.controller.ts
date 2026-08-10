@@ -28,6 +28,7 @@ export const createProjectSchema = z.object({
   agentId: z.string().min(1).optional().nullable(),
   currency: z.enum(Object.values(Currency) as [string, ...string[]]),
   totalBudget: z.number().int().positive(),
+  fundingMode: z.enum(['upfront', 'milestone']).default('upfront'),
   supervisionFeePercentage: z.number().min(0).max(100).optional().default(0),
   scope: z.string().min(10, "Please type in a detailed scope of project for our agents to review"),
   milestones: z.array(milestoneInputSchema).min(1, 'At least one milestone is required.'),
@@ -210,7 +211,7 @@ export const getProject = async (req: AuthRequest, res: Response, next: NextFunc
 export const createProject = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const user = req.user!;
-    const { name, assetType, location, agentId, currency, totalBudget, supervisionFeePercentage, scope, milestones } = req.body;
+    const { name, assetType, location, agentId, currency, totalBudget, fundingMode, supervisionFeePercentage, scope, milestones } = req.body;
 
     // Validate milestones business rules
     const validation = validateMilestones(milestones, totalBudget);
@@ -243,6 +244,42 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
 
     const feePercentage = supervisionFeePercentage ?? 10;
 
+    let fundsInEscrow = 0;
+
+    if (fundingMode === 'upfront') {
+      const { data: userProfile, error: profileError } = await supabase
+        .from('users')
+        .select('wallet_balance')
+        .eq('id', user.id)
+        .single();
+      
+      if (profileError) throw profileError;
+
+      const balance = Number(userProfile?.wallet_balance || 0);
+      if (balance < totalBudget) {
+        return res.status(400).json(buildError('insufficient_funds', `You need at least ₦${totalBudget.toLocaleString()} in your wallet to fund this project upfront.`));
+      }
+
+      // Deduct from wallet
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ wallet_balance: balance - totalBudget })
+        .eq('id', user.id);
+      
+      if (updateError) throw updateError;
+      
+      fundsInEscrow = totalBudget;
+
+      // Log transaction
+      await supabase.from('ledger_transactions').insert({
+        user_id: user.id,
+        title: `Funded Project: ${name}`,
+        amount: totalBudget,
+        currency,
+        type: 'debit',
+      });
+    }
+
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .insert({
@@ -255,8 +292,9 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
         sender_id: user.id,
         currency,
         total_budget: totalBudget,
+        funding_mode: fundingMode,
         funds_released: 0,
-        funds_in_escrow: totalBudget,
+        funds_in_escrow: fundsInEscrow,
         supervision_fee_percentage: supervisionFeePercentage,
         supervision_fee_total: Math.floor((totalBudget * supervisionFeePercentage) / 100),
         supervision_fee_paid: 0,
@@ -277,6 +315,7 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
     if (projectError) throw projectError;
 
     // Insert milestones
+    const isFunded = fundingMode === 'upfront';
     const milestoneRows = milestones.map((m: any) => ({
       project_id: project.id,
       order: m.order,
@@ -287,6 +326,7 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
       due_date: m.dueDate,
       released_at: null,
       proof_count: 0,
+      is_funded: isFunded
     }));
 
     const { error: msError } = await supabase.from('milestones').insert(milestoneRows);

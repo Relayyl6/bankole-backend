@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { supabase } from '../config/supabase.config';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { buildError, notFound, forbidden, parsePagination, paginatedResponse } from '../utils/response';
-import { tokenizeCard, resolveBankAccount } from '../services/paystack.service';
+import { tokenizeCard, resolveBankAccount, chargeCard, createTransferRecipient, initiateTransfer } from '../services/paystack.service';
 
 const luhnCheck = (num: string): boolean => {
   let sum = 0;
@@ -50,6 +50,7 @@ export const resolveBankAccountSchema = z.object({
 export const topupWalletSchema = z.object({
   amount: z.number().int().positive('Top-up amount must be positive'),
   currency: z.string().default('NGN'),
+  cardId: z.string().uuid('Invalid card ID'),
 });
 
 export const withdrawSchema = z.object({
@@ -80,7 +81,25 @@ export const resolveBankAccountController = async (req: AuthRequest, res: Respon
 export const topupWallet = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const user = req.user!;
-    const { amount, currency } = req.body;
+    const { amount, currency, cardId } = req.body;
+
+    // Fetch card details
+    const { data: card, error: cardError } = await supabase
+      .from('cards')
+      .select('gateway_token')
+      .eq('id', cardId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (cardError || !card) {
+      return res.status(404).json(buildError('card_not_found', 'Saved card not found.'));
+    }
+
+    // Charge the card
+    const chargeRes = await chargeCard(card.gateway_token, user.email!, amount, currency);
+    if (!chargeRes.success) {
+      return res.status(400).json(buildError('charge_failed', chargeRes.message || 'Payment failed.'));
+    }
 
     // 1. Fetch current wallet balance
     const { data: userProfile, error: profileError } = await supabase
@@ -334,6 +353,8 @@ export const addBankAccount = async (req: AuthRequest, res: Response, next: Next
 
     const isDefault = !existingAccounts || existingAccounts.length === 0;
 
+    const recipientCode = await createTransferRecipient(resolved.accountName, accountNumber, bankCode);
+
     const { data: newAccount, error } = await supabase
       .from('bank_accounts')
       .insert({
@@ -342,6 +363,7 @@ export const addBankAccount = async (req: AuthRequest, res: Response, next: Next
         bank_name: resolved.bankName,
         account_number: accountNumber,
         account_name: resolved.accountName,
+        recipient_code: recipientCode,
         is_default: isDefault
       })
       .select()
@@ -420,13 +442,22 @@ export const requestWithdrawal = async (req: AuthRequest, res: Response, next: N
 
     const { data: bankAccount } = await supabase
       .from('bank_accounts')
-      .select('id')
+      .select('id, recipient_code')
       .eq('id', bankAccountId)
       .eq('user_id', req.user!.id)
       .single();
 
     if (!bankAccount) {
       return notFound(res, 'Bank account');
+    }
+
+    if (!bankAccount.recipient_code) {
+      return res.status(400).json(buildError('invalid_bank_account', 'Bank account is missing recipient code. Please re-add it.'));
+    }
+
+    const transferRes = await initiateTransfer(bankAccount.recipient_code, amount, description, currency);
+    if (!transferRes.success) {
+      return res.status(400).json(buildError('transfer_failed', transferRes.message || 'Automatic payout failed.'));
     }
 
     const { data: withdrawal, error: wError } = await supabase
@@ -436,7 +467,7 @@ export const requestWithdrawal = async (req: AuthRequest, res: Response, next: N
         amount,
         currency,
         bank_account_id: bankAccountId,
-        status: 'pending',
+        status: 'completed', // Immediately completed via automatic transfer
         description
       })
       .select()

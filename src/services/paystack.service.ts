@@ -27,47 +27,36 @@ const BANK_NAMES: Record<string, string> = {
 export const resolveBankAccount = async (bankCode: string, accountNumber: string) => {
   const secretKey = env.PAYSTACK_SECRET_KEY;
 
-  if (secretKey && !secretKey.includes('xxxxxxxx')) {
-    try {
-      const response = await fetch(
-        `https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${secretKey}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      const resData = (await response.json()) as any;
-
-      if (response.ok && resData.status && resData.data) {
-        return {
-          bankName: BANK_NAMES[bankCode] || resData.data.bank_name || 'Bank',
-          accountNumber: resData.data.account_number || accountNumber,
-          accountName: resData.data.account_name,
-        };
-      }
-
-      // If Paystack returned a validation error message, throw it
-      if (resData.message) {
-        throw new Error(resData.message);
-      }
-    } catch (err: any) {
-      if (err.message && !err.message.includes('fetch')) {
-        throw err;
-      }
-      console.warn('[Paystack Service] Resolve API network error, falling back to simulated verification:', err.message);
-    }
+  if (!secretKey || secretKey.includes('xxxxxxxx')) {
+    throw new Error('Payment gateway is not configured.');
   }
 
-  // Graceful fallback / simulation
-  return {
-    bankName: BANK_NAMES[bankCode] || 'Verified Commercial Bank',
-    accountNumber,
-    accountName: 'VERIFIED ACCOUNT',
-  };
+  try {
+    const response = await fetch(
+      `https://api.paystack.co/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const resData = (await response.json()) as any;
+
+    if (response.ok && resData.status && resData.data) {
+      return {
+        bankName: BANK_NAMES[bankCode] || resData.data.bank_name || 'Bank',
+        accountNumber: resData.data.account_number || accountNumber,
+        accountName: resData.data.account_name,
+      };
+    }
+
+    throw new Error(resData.message || 'Failed to resolve bank account');
+  } catch (err: any) {
+    throw new Error(err.message || 'Payment gateway error.');
+  }
 };
 
 /**
@@ -81,39 +70,39 @@ export const tokenizeCard = async (
 ): Promise<string> => {
   const secretKey = env.PAYSTACK_SECRET_KEY;
 
-  if (secretKey && !secretKey.includes('xxxxxxxx')) {
-    try {
-      const [expMonth, expYear] = expiry.split('/');
-      const formattedYear = expYear.length === 2 ? `20${expYear}` : expYear;
-
-      const response = await fetch('https://api.paystack.co/charge/tokenize', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${secretKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          card: {
-            number: cardNumber,
-            cvv,
-            expiry_month: expMonth,
-            expiry_year: formattedYear,
-          },
-          email: 'cards@bankole.io',
-        }),
-      });
-
-      const resData = (await response.json()) as any;
-      if (response.ok && resData.status && resData.data?.token) {
-        return resData.data.token;
-      }
-    } catch (err: any) {
-      console.warn('[Paystack Service] Tokenize API notice, creating secure gateway token reference:', err.message);
-    }
+  if (!secretKey || secretKey.includes('xxxxxxxx')) {
+    throw new Error('Payment gateway is not configured.');
   }
 
-  // Secure token identifier
-  return `pstk_tok_${Date.now()}_${cardNumber.slice(-4)}`;
+  try {
+    const [expMonth, expYear] = expiry.split('/');
+    const formattedYear = expYear.length === 2 ? `20${expYear}` : expYear;
+
+    const response = await fetch('https://api.paystack.co/charge/tokenize', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        card: {
+          number: cardNumber,
+          cvv,
+          expiry_month: expMonth,
+          expiry_year: formattedYear,
+        },
+        email: 'cards@bankole.io',
+      }),
+    });
+
+    const resData = (await response.json()) as any;
+    if (response.ok && resData.status && resData.data?.token) {
+      return resData.data.token;
+    }
+    throw new Error(resData.message || 'Failed to tokenize card');
+  } catch (err: any) {
+    throw new Error(err.message || 'Payment gateway error.');
+  }
 };
 
 /**
@@ -152,3 +141,91 @@ export const createTransferRecipient = async (
   }
   return null;
 };
+
+/**
+ * Charges a saved card (authorization code) via Paystack
+ */
+export const chargeCard = async (
+  authorizationCode: string,
+  email: string,
+  amount: number,
+  currency: string = 'NGN'
+): Promise<{ success: boolean; reference?: string; message?: string }> => {
+  const secretKey = env.PAYSTACK_SECRET_KEY;
+
+  if (!secretKey || secretKey.includes('xxxxxxxx')) {
+    return { success: false, message: 'Payment gateway is not configured.' };
+  }
+
+  try {
+    const response = await fetch('https://api.paystack.co/transaction/charge_authorization', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        authorization_code: authorizationCode,
+        email,
+        amount: Math.round(amount * 100), // Paystack requires amount in kobo/cents
+        currency,
+      }),
+    });
+
+    const resData = (await response.json()) as any;
+    
+    if (response.ok && resData.status && resData.data?.status === 'success') {
+      return { success: true, reference: resData.data.reference };
+    }
+    return { success: false, message: resData.message || resData.data?.gateway_response };
+  } catch (err: any) {
+    console.error('[Paystack Service] Charge API error:', err.message);
+    return { success: false, message: 'Payment gateway error.' };
+  }
+};
+
+/**
+ * Initiates an automatic transfer to an agent's bank account via Paystack
+ */
+export const initiateTransfer = async (
+  recipientCode: string,
+  amount: number,
+  reason: string,
+  currency: string = 'NGN'
+): Promise<{ success: boolean; reference?: string; transferCode?: string; message?: string }> => {
+  const secretKey = env.PAYSTACK_SECRET_KEY;
+  if (!secretKey || secretKey.includes('xxxxxxxx')) {
+    return { success: false, message: 'Payment gateway is not configured.' };
+  }
+
+  try {
+    const response = await fetch('https://api.paystack.co/transfer', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        source: 'balance',
+        reason,
+        amount: Math.round(amount * 100), // Paystack requires amount in kobo/cents
+        recipient: recipientCode,
+        currency,
+      }),
+    });
+
+    const resData = (await response.json()) as any;
+    if (response.ok && resData.status && resData.data) {
+      return { 
+        success: true, 
+        reference: resData.data.reference,
+        transferCode: resData.data.transfer_code 
+      };
+    }
+    return { success: false, message: resData.message };
+  } catch (err: any) {
+    console.error('[Paystack Service] Transfer API error:', err.message);
+    return { success: false, message: 'Transfer gateway error.' };
+  }
+};
+

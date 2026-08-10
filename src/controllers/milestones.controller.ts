@@ -79,6 +79,84 @@ export const listMilestones = async (req: AuthRequest, res: Response, next: Next
   }
 };
 
+/** POST /milestones/:id/fund — sender only */
+export const fundMilestone = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const user = req.user!;
+
+    const { data: milestone, error } = await getMilestoneWithProject(id as string);
+    if (error) throw error;
+    if (!milestone) return notFound(res, 'Milestone');
+
+    const project = (milestone as any).projects;
+    if (!assertSenderOwnership(project, user.id, res)) return;
+
+    if (milestone.is_funded) {
+      return res.status(400).json(buildError('already_funded', 'This milestone is already funded.'));
+    }
+
+    // Check wallet balance
+    const { data: userProfile, error: profileError } = await supabase
+      .from('users')
+      .select('wallet_balance')
+      .eq('id', user.id)
+      .single();
+    
+    if (profileError) throw profileError;
+
+    const balance = Number(userProfile?.wallet_balance || 0);
+    if (balance < milestone.escrow_amount) {
+      return res.status(400).json(buildError('insufficient_funds', `You need at least ₦${milestone.escrow_amount.toLocaleString()} in your wallet to fund this milestone.`));
+    }
+
+    // Deduct from wallet
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ wallet_balance: balance - milestone.escrow_amount })
+      .eq('id', user.id);
+    
+    if (updateError) throw updateError;
+
+    // Add to project escrow
+    const { error: projError } = await supabase
+      .from('projects')
+      .update({ funds_in_escrow: project.funds_in_escrow + milestone.escrow_amount })
+      .eq('id', project.id);
+    
+    if (projError) throw projError;
+
+    // Mark milestone as funded
+    const { data: updated, error: msError } = await supabase
+      .from('milestones')
+      .update({ is_funded: true })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (msError) throw msError;
+
+    await supabase.from('ledger_transactions').insert({
+      user_id: user.id,
+      title: `Funded Milestone: ${milestone.stage}`,
+      amount: milestone.escrow_amount,
+      currency: 'NGN',
+      type: 'debit',
+    });
+
+    await logActivity({
+      projectId: project.id,
+      type: ActivityType.MILESTONE_APPROVED, // Re-using activity type or create a new one
+      message: `Milestone "${milestone.stage}" was funded and is now protected in escrow.`,
+      actorId: user.id,
+    });
+
+    return res.status(200).json(formatMilestone(updated, new Date()));
+  } catch (err) {
+    next(err);
+  }
+};
+
 /** POST /milestones/:id/submit — agent only */
 export const submitMilestone = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -94,6 +172,10 @@ export const submitMilestone = async (req: AuthRequest, res: Response, next: Nex
 
     if (milestone.status !== MilestoneStatus.IN_PROGRESS) {
       return conflict(res, 'invalid_milestone_status', `Cannot submit a milestone with status "${milestone.status}".`);
+    }
+
+    if (!milestone.is_funded) {
+      return res.status(409).json(buildError('unfunded_milestone', 'You cannot submit work for an unfunded milestone. Please wait for the Funder to deposit escrow.'));
     }
 
     // Require at least one proof attached
