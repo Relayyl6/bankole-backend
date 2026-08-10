@@ -19,7 +19,7 @@ const luhnCheck = (num: string): boolean => {
 
 const detectCardType = (num: string): string => {
   if (num.startsWith('4')) return 'visa';
-  if (num.startsWith('506')) return 'afrgo'; // AfriGO prefix
+  if (num.startsWith('564')) return 'afrgo'; // AfriGO prefix
   if (num.startsWith('5') || num.startsWith('2')) return 'mastercard';
   return 'verve';
 };
