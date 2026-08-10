@@ -1,7 +1,7 @@
 paths:
-  /api/v1/proofs/{id}/verification:
+  /api/v1/proofs/{id}:
     get:
-      summary: Get AI verification result
+      summary: Get proof details
       tags: [Proofs]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -12,28 +12,30 @@ paths:
             type: string
       responses:
         '200':
-          description: Verification retrieved
+          description: Proof retrieved
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  id: { type: string }
-                  projectId: { type: string }
-                  milestoneId: { type: string }
+                  id: { type: string, format: uuid }
+                  projectId: { type: string, format: uuid }
+                  milestoneId: { type: string, format: uuid }
                   type: { type: string }
                   caption: { type: string }
                   fileUrl: { type: string }
-                  thumbnailUrl: { type: string }
-                  capturedAt: { type: string, format: date-time }
+                  thumbnailUrl: { type: string, nullable: true }
+                  capturedAt: { type: string, format: date-time, nullable: true }
                   uploadedAt: { type: string, format: date-time }
                   geo:
                     type: object
+                    nullable: true
                     properties:
                       lat: { type: number }
                       lng: { type: number }
                   verification:
                     type: object
+                    nullable: true
                     properties:
                       riskLevel: { type: string }
                       verdict: { type: string }
@@ -61,22 +63,24 @@ paths:
               schema:
                 type: object
                 properties:
-                  id: { type: string }
-                  projectId: { type: string }
-                  milestoneId: { type: string }
+                  id: { type: string, format: uuid }
+                  projectId: { type: string, format: uuid }
+                  milestoneId: { type: string, format: uuid }
                   type: { type: string }
                   caption: { type: string }
                   fileUrl: { type: string }
-                  thumbnailUrl: { type: string }
-                  capturedAt: { type: string, format: date-time }
+                  thumbnailUrl: { type: string, nullable: true }
+                  capturedAt: { type: string, format: date-time, nullable: true }
                   uploadedAt: { type: string, format: date-time }
                   geo:
                     type: object
+                    nullable: true
                     properties:
                       lat: { type: number }
                       lng: { type: number }
                   verification:
                     type: object
+                    nullable: true
                     properties:
                       riskLevel: { type: string }
                       verdict: { type: string }
@@ -87,7 +91,7 @@ paths:
                   status: { type: string }
   /api/v1/proofs/{id}/flag:
     post:
-      summary: Flag proof
+      summary: Flag proof for dispute
       tags: [Proofs]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -104,22 +108,24 @@ paths:
               schema:
                 type: object
                 properties:
-                  id: { type: string }
-                  projectId: { type: string }
-                  milestoneId: { type: string }
+                  id: { type: string, format: uuid }
+                  projectId: { type: string, format: uuid }
+                  milestoneId: { type: string, format: uuid }
                   type: { type: string }
                   caption: { type: string }
                   fileUrl: { type: string }
-                  thumbnailUrl: { type: string }
-                  capturedAt: { type: string, format: date-time }
+                  thumbnailUrl: { type: string, nullable: true }
+                  capturedAt: { type: string, format: date-time, nullable: true }
                   uploadedAt: { type: string, format: date-time }
                   geo:
                     type: object
+                    nullable: true
                     properties:
                       lat: { type: number }
                       lng: { type: number }
                   verification:
                     type: object
+                    nullable: true
                     properties:
                       riskLevel: { type: string }
                       verdict: { type: string }

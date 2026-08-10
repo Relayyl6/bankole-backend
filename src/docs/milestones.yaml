@@ -10,11 +10,6 @@ paths:
           required: true
           schema:
             type: string
-        - in: header
-          name: Idempotency-Key
-          required: true
-          schema:
-            type: string
       responses:
         '200':
           description: Milestone funded successfully
@@ -25,12 +20,16 @@ paths:
                 properties:
                   id: { type: string }
                   projectId: { type: string }
-                  title: { type: string }
-                  description: { type: string }
+                  stage: { type: string }
+                  order: { type: integer }
+                  currency: { type: string }
                   escrowAmount: { type: integer }
                   status: { type: string }
                   dueDate: { type: string }
-                  createdAt: { type: string }
+                  isOverdue: { type: boolean }
+                  daysOverdue: { type: integer }
+                  proofCount: { type: integer }
+                  releasedAt: { type: string, format: date-time, nullable: true }
   /api/v1/milestones/{id}/submit:
     post:
       summary: Submit milestone for review
@@ -52,12 +51,16 @@ paths:
                 properties:
                   id: { type: string }
                   projectId: { type: string }
-                  title: { type: string }
-                  description: { type: string }
+                  stage: { type: string }
+                  order: { type: integer }
+                  currency: { type: string }
                   escrowAmount: { type: integer }
                   status: { type: string }
                   dueDate: { type: string }
-                  createdAt: { type: string }
+                  isOverdue: { type: boolean }
+                  daysOverdue: { type: integer }
+                  proofCount: { type: integer }
+                  releasedAt: { type: string, format: date-time, nullable: true }
   /api/v1/milestones/{id}/approve:
     post:
       summary: Approve milestone
@@ -69,6 +72,14 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
       responses:
         '200':
           description: Milestone approved
@@ -79,12 +90,16 @@ paths:
                 properties:
                   id: { type: string }
                   projectId: { type: string }
-                  title: { type: string }
-                  description: { type: string }
+                  stage: { type: string }
+                  order: { type: integer }
+                  currency: { type: string }
                   escrowAmount: { type: integer }
                   status: { type: string }
                   dueDate: { type: string }
-                  createdAt: { type: string }
+                  isOverdue: { type: boolean }
+                  daysOverdue: { type: integer }
+                  proofCount: { type: integer }
+                  releasedAt: { type: string, format: date-time, nullable: true }
   /api/v1/milestones/{id}/flag:
     post:
       summary: Flag milestone for dispute
@@ -115,12 +130,16 @@ paths:
                 properties:
                   id: { type: string }
                   projectId: { type: string }
-                  title: { type: string }
-                  description: { type: string }
+                  stage: { type: string }
+                  order: { type: integer }
+                  currency: { type: string }
                   escrowAmount: { type: integer }
                   status: { type: string }
                   dueDate: { type: string }
-                  createdAt: { type: string }
+                  isOverdue: { type: boolean }
+                  daysOverdue: { type: integer }
+                  proofCount: { type: integer }
+                  releasedAt: { type: string, format: date-time, nullable: true }
   /api/v1/milestones/{id}/release:
     post:
       summary: Release milestone funds
@@ -129,11 +148,6 @@ paths:
       parameters:
         - in: path
           name: id
-          required: true
-          schema:
-            type: string
-        - in: header
-          name: Idempotency-Key
           required: true
           schema:
             type: string
@@ -150,12 +164,16 @@ paths:
                     properties:
                       id: { type: string }
                       projectId: { type: string }
-                      title: { type: string }
-                      description: { type: string }
+                      stage: { type: string }
+                      order: { type: integer }
+                      currency: { type: string }
                       escrowAmount: { type: integer }
                       status: { type: string }
                       dueDate: { type: string }
-                      createdAt: { type: string }
+                      isOverdue: { type: boolean }
+                      daysOverdue: { type: integer }
+                      proofCount: { type: integer }
+                      releasedAt: { type: string, format: date-time, nullable: true }
                   fundsReleased: { type: number }
                   fundsInEscrow: { type: number }
   /api/v1/milestones/{id}/proofs:
@@ -196,13 +214,23 @@ paths:
                   type: { type: string }
                   caption: { type: string }
                   fileUrl: { type: string }
-                  thumbnailUrl: { type: string }
-                  capturedAt: { type: string, format: date-time }
+                  thumbnailUrl: { type: string, nullable: true }
+                  capturedAt: { type: string, format: date-time, nullable: true }
                   uploadedAt: { type: string, format: date-time }
                   geo:
                     type: object
+                    nullable: true
                     properties:
                       lat: { type: number }
                       lng: { type: number }
-                  verification: { type: object }
+                  verification:
+                    type: object
+                    nullable: true
+                    properties:
+                      riskLevel: { type: string }
+                      verdict: { type: string }
+                      confidence: { type: number }
+                      summary: { type: string }
+                      checks: { type: array }
+                      flags: { type: array }
                   status: { type: string }

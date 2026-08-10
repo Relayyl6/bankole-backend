@@ -21,7 +21,7 @@ paths:
           name: assetType
           schema:
             type: string
-            enum: [house, shop, clinic, borehole, school, land, community]
+            enum: [real_estate, logistics, generic, borehole, school, land, community]
         - in: query
           name: search
           schema:
@@ -54,10 +54,12 @@ paths:
               required: [name, assetType, location, currency, totalBudget, scope, milestones]
               properties:
                 name: { type: string, minLength: 2 }
-                assetType: { type: string, enum: [house, shop, clinic, borehole, school, land, community] }
-                location: 
+                assetType: { type: string, enum: [real_estate, logistics, generic, borehole, school, land, community] }
+                location:
                   type: object
+                  required: [label, lat, lng]
                   properties:
+                    label: { type: string, minLength: 1 }
                     lat: { type: number }
                     lng: { type: number }
                 agentId: { type: string, minLength: 1, nullable: true }
@@ -65,7 +67,7 @@ paths:
                 totalBudget: { type: number, minimum: 1 }
                 supervisionFeePercentage: { type: number, minimum: 0, maximum: 100, default: 0 }
                 scope: { type: string, minLength: 10 }
-                fundingMode: { type: string, enum: [upfront, milestone] }
+                fundingMode: { type: string, enum: [upfront, milestone], default: upfront }
                 milestones:
                   type: array
                   minItems: 1
@@ -130,25 +132,13 @@ paths:
                 type: object
   /api/v1/projects/{id}/bids:
     get:
-      summary: Get project bids
+      summary: List project bids
       tags: [Projects]
       security: [{ bearerAuth: [] }]
       parameters:
         - in: path
           name: id
           required: true
-          schema:
-            type: string
-        - in: query
-          name: page
-          schema:
-            type: integer
-        - in: query
-          name: perPage
-          schema:
-            type: integer
-        - in: query
-          name: status
           schema:
             type: string
       responses:
@@ -418,15 +408,8 @@ paths:
                           properties:
                             id: { type: string }
                             name: { type: string }
-                            role: { type: string }
+                            coverLetter: { type: string }
                         createdAt: { type: string, format: date-time }
-                  meta:
-                    type: object
-                    properties:
-                      page: { type: integer }
-                      perPage: { type: integer }
-                      total: { type: integer }
-                      totalPages: { type: integer }
   /api/v1/projects/{id}/documents:
     get:
       summary: List documents

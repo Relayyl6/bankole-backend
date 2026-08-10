@@ -180,7 +180,12 @@ paths:
                       properties:
                         id: { type: string, format: uuid }
                         projectId: { type: string, format: uuid }
-                        authorId: { type: string, format: uuid }
+                        author:
+                          type: object
+                          properties:
+                            id: { type: string, format: uuid }
+                            name: { type: string }
+                            role: { type: string }
                         body: { type: string }
                         createdAt: { type: string, format: date-time }
                   meta: { type: object }
@@ -214,6 +219,11 @@ paths:
                 properties:
                   id: { type: string, format: uuid }
                   projectId: { type: string, format: uuid }
-                  authorId: { type: string, format: uuid }
+                  author:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      name: { type: string }
+                      role: { type: string }
                   body: { type: string }
                   createdAt: { type: string, format: date-time }

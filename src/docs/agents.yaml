@@ -36,7 +36,9 @@ paths:
         - in: query
           name: specialty
           schema:
-            type: string
+            type: array
+            items:
+              type: string
         - in: query
           name: q
           schema:
@@ -88,7 +90,7 @@ paths:
               type: object
               required: [rating, quote]
               properties:
-                rating: { type: number, minimum: 1, maximum: 5 }
+                rating: { type: integer, minimum: 1, maximum: 5 }
                 quote: { type: string, minLength: 10 }
       responses:
         '201':
@@ -119,6 +121,8 @@ paths:
               properties:
                 label: { type: string }
                 licenseType: { type: string }
+                licenseNumber: { type: string }
+                issuer: { type: string }
                 yearIssued: { type: string }
                 verifiedOn: { type: string }
       responses:
@@ -128,6 +132,14 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  licenseType: { type: string }
+                  licenseNumber: { type: string }
+                  label: { type: string }
+                  issuer: { type: string }
+                  verifiedOn: { type: string, format: date-time, nullable: true }
+                  verified: { type: boolean }
   /api/v1/agents/{id}/portfolio:
     post:
       summary: Add portfolio item
@@ -147,7 +159,7 @@ paths:
               type: object
               required: [title, location]
               properties:
-                title: { type: string, minLength: 2, maxLength: 100 }
+                title: { type: string, minLength: 2 }
                 location: { type: string }
                 assetType: { type: string }
                 summary: { type: string }
@@ -161,6 +173,15 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  title: { type: string }
+                  location: { type: string }
+                  assetType: { type: string }
+                  summary: { type: string }
+                  imageUrl: { type: string }
+                  coverUrl: { type: string }
+                  completionYear: { type: string }
   /api/v1/agents/{id}/verification-docs:
     post:
       summary: Upload verification docs
