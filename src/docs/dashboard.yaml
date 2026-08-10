@@ -12,6 +12,26 @@ paths:
               schema:
                 type: object
                 properties:
-                  stats: { type: object }
-                  activeProjects: { type: array, items: { type: object } }
-                  recentTransactions: { type: array, items: { type: object } }
+                  currency: { type: string }
+                  projectCount: { type: integer }
+                  totalBudget: { type: number }
+                  totalReleased: { type: number }
+                  totalInEscrow: { type: number }
+                  awaitingYourReview: { type: integer }
+                  attentionNeeded: { type: integer }
+                  recentActivity:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        projectId: { type: string }
+                        type: { type: string }
+                        message: { type: string }
+                        actor:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            name: { type: string }
+                            role: { type: string }
+                        createdAt: { type: string, format: date-time }

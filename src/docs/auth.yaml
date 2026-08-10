@@ -9,20 +9,32 @@ paths:
           application/json:
             schema:
               type: object
-              required: [fullName, email, password, role, country]
+              required: [email, password, role, fullName, country]
               properties:
-                fullName: { type: string, minLength: 2 }
                 email: { type: string, format: email }
                 password: { type: string, minLength: 8 }
                 role: { type: string, enum: [sender, agent] }
-                country: { type: string }
+                fullName: { type: string, minLength: 2 }
+                country: { type: string, minLength: 2, maxLength: 2 }
                 phoneNumber: { type: string }
+                companyName: { type: string }
+                bio: { type: string }
+                portfolioUrl: { type: string, format: uri }
       responses:
         '201':
-          description: Registered successfully
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+                  expiresIn: { type: integer }
+                  user: { type: object }
   /api/v1/auth/login:
     post:
-      summary: Authenticate a user
+      summary: Login user
       tags: [Auth]
       requestBody:
         required: true
@@ -33,54 +45,22 @@ paths:
               required: [email, password]
               properties:
                 email: { type: string, format: email }
-                password: { type: string }
+                password: { type: string, minLength: 1 }
       responses:
         '200':
-          description: Authenticated successfully or requires 2FA
-  /api/v1/auth/verify-2fa:
-    post:
-      summary: Verify 2FA during login
-      tags: [Auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [code]
-              properties:
-                code: { type: string }
-      responses:
-        '200':
-          description: Verified successfully
-  /api/v1/auth/me:
-    get:
-      summary: Get the authenticated user's profile
-      tags: [Auth]
-      security: [{ bearerAuth: [] }]
-      responses:
-        '200':
-          description: Profile retrieved successfully
-    patch:
-      summary: Update the authenticated user's profile
-      tags: [Auth]
-      security: [{ bearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                fullName: { type: string }
-                bio: { type: string }
-                specialties: { type: array, items: { type: string } }
-      responses:
-        '200':
-          description: Profile updated successfully
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+                  expiresIn: { type: integer }
+                  user: { type: object }
   /api/v1/auth/refresh:
     post:
-      summary: Refresh JWT token
+      summary: Refresh access token
       tags: [Auth]
       requestBody:
         required: true
@@ -90,46 +70,33 @@ paths:
               type: object
               required: [refreshToken]
               properties:
-                refreshToken: { type: string }
+                refreshToken: { type: string, minLength: 1 }
       responses:
         '200':
-          description: Tokens refreshed
-  /api/v1/auth/logout:
-    post:
-      summary: Logout user
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+                  expiresIn: { type: integer }
+                  user: { type: object }
+  /api/v1/auth/me:
+    get:
+      summary: Get current user profile
       tags: [Auth]
       security: [{ bearerAuth: [] }]
       responses:
-        '204':
-          description: Logged out
-  /api/v1/auth/2fa/enable:
-    post:
-      summary: Setup 2FA
-      tags: [Auth]
-      security: [{ bearerAuth: [] }]
-      responses:
         '200':
-          description: 2FA setup initiated
-  /api/v1/auth/2fa/verify:
-    post:
-      summary: Confirm 2FA setup
-      tags: [Auth]
-      security: [{ bearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [code]
-              properties:
-                code: { type: string }
-      responses:
-        '200':
-          description: 2FA confirmed
-  /api/v1/auth/preferences:
+          description: Profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
     patch:
-      summary: Update notification and escrow preferences
+      summary: Update user profile
       tags: [Auth]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -139,12 +106,33 @@ paths:
             schema:
               type: object
               properties:
-                inAppAlerts: { type: boolean }
-                emailNotifications: { type: boolean }
-                autoReleaseEscrow: { type: string, enum: [never, 3days, 7days] }
+                fullName: { type: string, minLength: 2 }
+                country: { type: string, minLength: 2, maxLength: 2 }
+                yearsExperience: { type: number, minimum: 0 }
+                avatarUrl: { type: string, format: uri }
+                phoneNumber: { type: string }
+                currencyPreference: { type: string }
+                timezone: { type: string }
+                companyName: { type: string }
+                portfolioUrl: { type: string, format: uri }
+                availabilityStatus: { type: string }
+                bio: { type: string }
+                specialties: { type: array, items: { type: string } }
       responses:
         '200':
-          description: Preferences updated
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  updatedFields: 
+                    type: object
+                    properties:
+                      usersUpdated: { type: boolean }
+                      agentsUpdated: { type: boolean }
+                  profile: { type: object }
   /api/v1/auth/password:
     post:
       summary: Change password
@@ -158,8 +146,74 @@ paths:
               type: object
               required: [currentPassword, newPassword]
               properties:
-                currentPassword: { type: string }
-                newPassword: { type: string }
+                currentPassword: { type: string, minLength: 1 }
+                newPassword: { type: string, minLength: 8 }
       responses:
         '200':
           description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+  /api/v1/auth/2fa/enable:
+    post:
+      summary: Enable 2FA
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: 2FA secret generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  secret: { type: string }
+                  qrCodeUrl: { type: string }
+  /api/v1/auth/2fa/verify:
+    post:
+      summary: Verify 2FA code
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, minLength: 6, maxLength: 6 }
+      responses:
+        '200':
+          description: 2FA verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+  /api/v1/auth/preferences:
+    patch:
+      summary: Update notification preferences
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                emailNotifications: { type: boolean }
+                inAppAlerts: { type: boolean }
+                autoReleaseEscrow: { type: string, enum: [never, 3days, 7days] }
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                type: object

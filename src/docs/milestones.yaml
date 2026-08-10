@@ -1,7 +1,7 @@
 paths:
   /api/v1/milestones/{id}/fund:
     post:
-      summary: Fund a milestone
+      summary: Fund milestone from wallet
       tags: [Milestones]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -10,16 +10,30 @@ paths:
           required: true
           schema:
             type: string
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema:
+            type: string
       responses:
         '200':
-          description: Milestone funded
+          description: Milestone funded successfully
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  id: { type: string }
+                  projectId: { type: string }
+                  title: { type: string }
+                  description: { type: string }
+                  escrowAmount: { type: integer }
+                  status: { type: string }
+                  dueDate: { type: string }
+                  createdAt: { type: string }
   /api/v1/milestones/{id}/submit:
     post:
-      summary: Submit milestone
+      summary: Submit milestone for review
       tags: [Milestones]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -35,6 +49,15 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  id: { type: string }
+                  projectId: { type: string }
+                  title: { type: string }
+                  description: { type: string }
+                  escrowAmount: { type: integer }
+                  status: { type: string }
+                  dueDate: { type: string }
+                  createdAt: { type: string }
   /api/v1/milestones/{id}/approve:
     post:
       summary: Approve milestone
@@ -46,13 +69,6 @@ paths:
           required: true
           schema:
             type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                note: { type: string }
       responses:
         '200':
           description: Milestone approved
@@ -60,9 +76,18 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  id: { type: string }
+                  projectId: { type: string }
+                  title: { type: string }
+                  description: { type: string }
+                  escrowAmount: { type: integer }
+                  status: { type: string }
+                  dueDate: { type: string }
+                  createdAt: { type: string }
   /api/v1/milestones/{id}/flag:
     post:
-      summary: Flag milestone
+      summary: Flag milestone for dispute
       tags: [Milestones]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -87,6 +112,15 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  id: { type: string }
+                  projectId: { type: string }
+                  title: { type: string }
+                  description: { type: string }
+                  escrowAmount: { type: integer }
+                  status: { type: string }
+                  dueDate: { type: string }
+                  createdAt: { type: string }
   /api/v1/milestones/{id}/release:
     post:
       summary: Release milestone funds
@@ -100,6 +134,7 @@ paths:
             type: string
         - in: header
           name: Idempotency-Key
+          required: true
           schema:
             type: string
       responses:
@@ -110,12 +145,22 @@ paths:
               schema:
                 type: object
                 properties:
-                  milestone: { type: object }
+                  milestone:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      projectId: { type: string }
+                      title: { type: string }
+                      description: { type: string }
+                      escrowAmount: { type: integer }
+                      status: { type: string }
+                      dueDate: { type: string }
+                      createdAt: { type: string }
                   fundsReleased: { type: number }
                   fundsInEscrow: { type: number }
   /api/v1/milestones/{id}/proofs:
     post:
-      summary: Upload AI proof
+      summary: Upload a milestone proof
       tags: [Milestones]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -139,8 +184,25 @@ paths:
                 capturedAt: { type: string, format: date-time }
       responses:
         '201':
-          description: Proof uploaded
+          description: Proof uploaded and AI verification queued
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  id: { type: string }
+                  projectId: { type: string }
+                  milestoneId: { type: string }
+                  type: { type: string }
+                  caption: { type: string }
+                  fileUrl: { type: string }
+                  thumbnailUrl: { type: string }
+                  capturedAt: { type: string, format: date-time }
+                  uploadedAt: { type: string, format: date-time }
+                  geo:
+                    type: object
+                    properties:
+                      lat: { type: number }
+                      lng: { type: number }
+                  verification: { type: object }
+                  status: { type: string }

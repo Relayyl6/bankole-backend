@@ -3,26 +3,59 @@ paths:
     get:
       summary: List agents
       tags: [Agents]
+      security: [{ bearerAuth: [] }]
       parameters:
         - in: query
-          name: q
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: perPage
+          schema:
+            type: integer
+        - in: query
+          name: location
           schema:
             type: string
+        - in: query
+          name: verifiedOnly
+          schema:
+            type: string
+            enum: ['true', 'false']
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [rating, experience, projects]
+        - in: query
+          name: minRating
+          schema:
+            type: number
+            minimum: 0
+            maximum: 5
         - in: query
           name: specialty
           schema:
             type: string
         - in: query
-          name: minRating
+          name: q
           schema:
-            type: number
+            type: string
       responses:
         '200':
-          description: Agents retrieved successfully
+          description: Agents retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { type: object } }
+                  meta: { type: object }
   /api/v1/agents/{id}:
     get:
       summary: Get agent profile
       tags: [Agents]
+      security: [{ bearerAuth: [] }]
       parameters:
         - in: path
           name: id
@@ -31,10 +64,14 @@ paths:
             type: string
       responses:
         '200':
-          description: Profile retrieved
+          description: Agent profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
   /api/v1/agents/{id}/reviews:
     post:
-      summary: Submit a review for an agent
+      summary: Add review
       tags: [Agents]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -49,16 +86,22 @@ paths:
           application/json:
             schema:
               type: object
-              required: [quote, rating]
+              required: [rating, quote]
               properties:
-                quote: { type: string }
-                rating: { type: integer, minimum: 1, maximum: 5 }
+                rating: { type: number, minimum: 1, maximum: 5 }
+                quote: { type: string, minLength: 10 }
       responses:
         '201':
-          description: Review submitted
+          description: Review added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
   /api/v1/agents/{id}/credentials:
     post:
-      summary: Add a credential
+      summary: Add credential
       tags: [Agents]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -75,15 +118,19 @@ paths:
               type: object
               properties:
                 label: { type: string }
-                issuer: { type: string }
                 licenseType: { type: string }
-                licenseNumber: { type: string }
+                yearIssued: { type: string }
+                verifiedOn: { type: string }
       responses:
         '201':
           description: Credential added
+          content:
+            application/json:
+              schema:
+                type: object
   /api/v1/agents/{id}/portfolio:
     post:
-      summary: Add a portfolio item
+      summary: Add portfolio item
       tags: [Agents]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -100,17 +147,23 @@ paths:
               type: object
               required: [title, location]
               properties:
-                title: { type: string }
+                title: { type: string, minLength: 2, maxLength: 100 }
                 location: { type: string }
                 assetType: { type: string }
                 summary: { type: string }
                 imageUrl: { type: string }
+                coverUrl: { type: string }
+                completionYear: { type: string }
       responses:
         '201':
           description: Portfolio item added
+          content:
+            application/json:
+              schema:
+                type: object
   /api/v1/agents/{id}/verification-docs:
     post:
-      summary: Submit verification documents
+      summary: Upload verification docs
       tags: [Agents]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -125,18 +178,19 @@ paths:
           multipart/form-data:
             schema:
               type: object
+              required: [idDocument]
               properties:
-                idDocument:
-                  type: string
-                  format: binary
-                credentials:
-                  type: string
-                  format: binary
-                reference:
-                  type: string
-                  format: binary
-                statement:
-                  type: string
+                idDocument: { type: string, format: binary }
+                credentials: { type: string, format: binary }
+                reference: { type: string, format: binary }
+                statement: { type: string }
       responses:
-        '201':
-          description: Documents submitted
+        '200':
+          description: Verification docs uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  status: { type: string }

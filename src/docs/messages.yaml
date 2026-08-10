@@ -20,25 +20,38 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  threadId: { type: string, format: uuid }
+                  participant:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      name: { type: string }
+                      avatarUrl: { type: string }
+                  lastMessage: { type: string }
+                  unreadCount: { type: integer }
+                  updatedAt: { type: string, format: date-time }
         '201':
           description: Thread created
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  threadId: { type: string, format: uuid }
+                  participant:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      name: { type: string }
+                      avatarUrl: { type: string }
+                  lastMessage: { type: string }
+                  unreadCount: { type: integer }
+                  updatedAt: { type: string, format: date-time }
     get:
       summary: List DM threads
       tags: [Messages]
       security: [{ bearerAuth: [] }]
-      parameters:
-        - in: query
-          name: page
-          schema:
-            type: integer
-        - in: query
-          name: perPage
-          schema:
-            type: integer
       responses:
         '200':
           description: Threads retrieved
@@ -47,8 +60,21 @@ paths:
               schema:
                 type: object
                 properties:
-                  data: { type: array, items: { type: object } }
-                  meta: { type: object }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        threadId: { type: string, format: uuid }
+                        participant:
+                          type: object
+                          properties:
+                            id: { type: string, format: uuid }
+                            name: { type: string }
+                            avatarUrl: { type: string }
+                        lastMessage: { type: string }
+                        unreadCount: { type: integer }
+                        updatedAt: { type: string, format: date-time }
   /api/v1/messages/threads/{threadId}/messages:
     get:
       summary: Get thread messages
@@ -60,6 +86,7 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
         - in: query
           name: page
           schema:
@@ -76,7 +103,15 @@ paths:
               schema:
                 type: object
                 properties:
-                  data: { type: array, items: { type: object } }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        authorId: { type: string, format: uuid }
+                        body: { type: string }
+                        createdAt: { type: string, format: date-time }
                   meta: { type: object }
     post:
       summary: Send a message
@@ -88,6 +123,7 @@ paths:
           required: true
           schema:
             type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -104,3 +140,80 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  authorId: { type: string, format: uuid }
+                  body: { type: string }
+                  createdAt: { type: string, format: date-time }
+  /api/v1/projects/{id}/messages:
+    get:
+      summary: Get project messages
+      tags: [Projects, Messages]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: perPage
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Messages retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        projectId: { type: string, format: uuid }
+                        authorId: { type: string, format: uuid }
+                        body: { type: string }
+                        createdAt: { type: string, format: date-time }
+                  meta: { type: object }
+    post:
+      summary: Send a project message
+      tags: [Projects, Messages]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  projectId: { type: string, format: uuid }
+                  authorId: { type: string, format: uuid }
+                  body: { type: string }
+                  createdAt: { type: string, format: date-time }
