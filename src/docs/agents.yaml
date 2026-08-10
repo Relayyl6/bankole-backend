@@ -1,0 +1,142 @@
+paths:
+  /api/v1/agents:
+    get:
+      summary: List agents
+      tags: [Agents]
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: specialty
+          schema:
+            type: string
+        - in: query
+          name: minRating
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Agents retrieved successfully
+  /api/v1/agents/{id}:
+    get:
+      summary: Get agent profile
+      tags: [Agents]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Profile retrieved
+  /api/v1/agents/{id}/reviews:
+    post:
+      summary: Submit a review for an agent
+      tags: [Agents]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [quote, rating]
+              properties:
+                quote: { type: string }
+                rating: { type: integer, minimum: 1, maximum: 5 }
+      responses:
+        '201':
+          description: Review submitted
+  /api/v1/agents/{id}/credentials:
+    post:
+      summary: Add a credential
+      tags: [Agents]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                label: { type: string }
+                issuer: { type: string }
+                licenseType: { type: string }
+                licenseNumber: { type: string }
+      responses:
+        '201':
+          description: Credential added
+  /api/v1/agents/{id}/portfolio:
+    post:
+      summary: Add a portfolio item
+      tags: [Agents]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, location]
+              properties:
+                title: { type: string }
+                location: { type: string }
+                assetType: { type: string }
+                summary: { type: string }
+                imageUrl: { type: string }
+      responses:
+        '201':
+          description: Portfolio item added
+  /api/v1/agents/{id}/verification-docs:
+    post:
+      summary: Submit verification documents
+      tags: [Agents]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                idDocument:
+                  type: string
+                  format: binary
+                credentials:
+                  type: string
+                  format: binary
+                reference:
+                  type: string
+                  format: binary
+                statement:
+                  type: string
+      responses:
+        '201':
+          description: Documents submitted

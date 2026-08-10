@@ -1,0 +1,106 @@
+paths:
+  /api/v1/messages/threads:
+    post:
+      summary: Get or create DM thread
+      tags: [Messages]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentId]
+              properties:
+                agentId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Thread retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+        '201':
+          description: Thread created
+          content:
+            application/json:
+              schema:
+                type: object
+    get:
+      summary: List DM threads
+      tags: [Messages]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: perPage
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Threads retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { type: object } }
+                  meta: { type: object }
+  /api/v1/messages/threads/{threadId}/messages:
+    get:
+      summary: Get thread messages
+      tags: [Messages]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: threadId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: perPage
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Messages retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { type: object } }
+                  meta: { type: object }
+    post:
+      summary: Send a message
+      tags: [Messages]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: threadId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                type: object

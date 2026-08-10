@@ -1,0 +1,15 @@
+paths:
+  /api/v1/documents/{id}:
+    delete:
+      summary: Delete document
+      tags: [Documents]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Document deleted

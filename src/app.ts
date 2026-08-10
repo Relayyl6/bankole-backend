@@ -4,6 +4,8 @@ import { env } from './config/env.config';
 import { errorHandler, notFoundHandler } from './middlewares/error.middleware';
 import { globalLimiter } from './middlewares/rateLimiter.middleware';
 import routes from './routes';
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpec from './config/swagger.config';
 
 const app = express();
 
@@ -38,6 +40,10 @@ app.use(globalLimiter);
 
 // ─── Routes (/api/v1) ─────────────────────────────────────────────────────────
 
+//  Swagger API Docs 
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: 'Bankole API Docs' }));
+
+//  Routes (/api/v1) 
 app.use('/api/v1', routes);
 
 // Health check — outside versioned prefix so infra probes don't need auth

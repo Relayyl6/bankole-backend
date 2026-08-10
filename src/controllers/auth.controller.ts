@@ -16,6 +16,9 @@ export const registerSchema = z.object({
   role: z.enum([Role.SENDER, Role.AGENT], { message: 'Role must be sender or agent.' }),
   country: z.string().length(2, 'Country must be an ISO 3166-1 alpha-2 code (e.g. GB, NG).').toUpperCase(),
   phoneNumber: z.string().optional(),
+  companyName: z.string().optional(),
+  bio: z.string().optional(),
+  portfolioUrl: z.string().url('Must be a valid URL.').optional(),
 });
 
 export const loginSchema = z.object({
@@ -70,6 +73,7 @@ const formatTokenResponse = (session: any, user: any) => ({
     email: user.email,
     role: user.role,
     country: user.country,
+    phoneNumber: user.phone_number,
   },
 });
 
@@ -78,7 +82,7 @@ const formatTokenResponse = (session: any, user: any) => ({
 /** POST /auth/register */
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { fullName, email, password, role, country, phoneNumber } = req.body; // <--- AUGMENTED
+    const { fullName, email, password, role, country, phoneNumber, companyName, bio, portfolioUrl } = req.body; // <--- AUGMENTED
 
     // 1. Create auth user in Supabase Auth
     let { data: signUpData, error: signUpError } = await supabase.auth.admin.createUser({
@@ -160,11 +164,11 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 
     // 3. If role is agent, seed an agent record
     if (role === Role.AGENT) {
-      await supabase.from('agents').insert({
+      const { error: agentError } = await supabase.from('agents').insert({
         user_id: authUser.id,
         name: fullName,
         initials: getInitials(fullName),
-        bio: null,
+        bio: bio || null,
         location: country,
         specialties: [],
         rating: 0,
@@ -174,10 +178,11 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
         verified: true,
         avatar_url: null,
         // New augmented defaults
-        company_name: null,         // <--- AUGMENTED
-        portfolio_url: null,        // <--- AUGMENTED
+        company_name: companyName || null,         // <--- AUGMENTED
+        portfolio_url: portfolioUrl || null,        // <--- AUGMENTED
         availability_status: 'Available', // <--- AUGMENTED
       });
+      if (agentError) throw agentError;
     }
 
     // 4. Sign in to get session tokens
@@ -214,7 +219,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 
     const { data: profile, error: profileError } = await supabase
       .from('users')
-      .select('full_name, role, country')
+      .select('full_name, role, country, phone_number')
       .eq('id', data.user.id)
       .single();
 
@@ -229,6 +234,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         full_name: profile.full_name,
         role: profile.role,
         country: profile.country,
+        phone_number: profile.phone_number,
       })
     );
   } catch (err) {
@@ -239,23 +245,56 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
 /** GET /auth/me */
 export const me = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { data: profile, error } = await supabase
+    const { data: userProfile, error: userError } = await supabase
       .from('users')
-      .select('id, full_name, email, role, country')
+      .select('id, full_name, email, role, country, phone_number, currency_preference, timezone, created_at')
       .eq('id', req.user!.id)
       .single();
 
-    if (error || !profile) {
+    if (userError || !userProfile) {
       return res.status(404).json(buildError('not_found', 'User profile not found.'));
     }
 
-    return res.status(200).json({
-      id: profile.id,
-      fullName: profile.full_name,
-      email: profile.email,
-      role: profile.role,
-      country: profile.country,
-    });
+    let responsePayload: any = {
+      id: userProfile.id,
+      fullName: userProfile.full_name,
+      email: userProfile.email,
+      role: userProfile.role,
+      country: userProfile.country,
+      phoneNumber: userProfile.phone_number,
+      currencyPreference: userProfile.currency_preference,
+      timezone: userProfile.timezone,
+      createdAt: userProfile.created_at,
+    };
+
+    if (userProfile.role === Role.AGENT) {
+      const { data: agentProfile } = await supabase
+        .from('agents')
+        .select(`
+          bio, specialties, years_experience, avatar_url, verified, rating, review_count, completed_projects,
+          company_name, portfolio_url, availability_status
+        `)
+        .eq('user_id', req.user!.id)
+        .single();
+      
+      if (agentProfile) {
+        responsePayload.agentDetails = {
+          bio: agentProfile.bio,
+          specialties: agentProfile.specialties,
+          yearsExperience: agentProfile.years_experience,
+          avatarUrl: agentProfile.avatar_url,
+          verified: agentProfile.verified,
+          rating: agentProfile.rating,
+          reviewCount: agentProfile.review_count,
+          completedProjects: agentProfile.completed_projects,
+          companyName: agentProfile.company_name,
+          portfolioUrl: agentProfile.portfolio_url,
+          availabilityStatus: agentProfile.availability_status,
+        };
+      }
+    }
+
+    return res.status(200).json(responsePayload);
   } catch (err) {
     next(err);
   }
@@ -275,7 +314,7 @@ export const refresh = async (req: Request, res: Response, next: NextFunction) =
 
     const { data: profile } = await supabase
       .from('users')
-      .select('full_name, role, country')
+      .select('full_name, role, country, phone_number')
       .eq('id', data.user.id)
       .single();
 
@@ -286,6 +325,7 @@ export const refresh = async (req: Request, res: Response, next: NextFunction) =
         full_name: profile?.full_name,
         role: profile?.role,
         country: profile?.country,
+        phone_number: profile?.phone_number,
       })
     );
   } catch (err) {
@@ -487,9 +527,12 @@ export const enable2fa = async (req: AuthRequest, res: Response, next: NextFunct
 
     if (error) throw error;
 
+    const qrcode = await import('qrcode');
+    const qrDataUrl = await qrcode.toDataURL(secret.otpauth_url!);
+
     return res.status(200).json({
       secret: secret.base32,
-      qrCodeUrl: secret.otpauth_url,
+      qrCodeUrl: qrDataUrl,
     });
   } catch (err) {
     next(err);

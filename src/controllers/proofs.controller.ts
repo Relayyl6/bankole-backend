@@ -15,7 +15,7 @@ export const uploadProofSchema = z.object({
   caption: z.string().min(1, 'Caption is required.'),
   capturedLat: z.coerce.number().optional(),
   capturedLng: z.coerce.number().optional(),
-  capturedAt: z.string().optional(),
+  capturedAt: z.string().datetime().optional(),
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

@@ -1,0 +1,240 @@
+paths:
+  /api/v1/payments/topup:
+    post:
+      summary: Topup wallet balance
+      tags: [Payments]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, cardId]
+              properties:
+                amount: { type: integer, minimum: 1 }
+                currency: { type: string, default: NGN }
+                cardId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Wallet funded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  status: { type: string }
+                  balance: { type: number }
+                  amount: { type: number }
+                  currency: { type: string }
+                  transactionId: { type: string }
+  /api/v1/payments/bank-accounts/resolve:
+    post:
+      summary: Resolve bank account
+      tags: [Payments]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accountNumber, bankCode]
+              properties:
+                accountNumber: { type: string, minLength: 10, maxLength: 10 }
+                bankCode: { type: string, minLength: 3, maxLength: 6 }
+      responses:
+        '200':
+          description: Account resolved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accountName: { type: string }
+                  accountNumber: { type: string }
+                  bankCode: { type: string }
+                  bankName: { type: string }
+  /api/v1/payments/cards:
+    get:
+      summary: List saved cards
+      tags: [Payments]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Cards retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+    post:
+      summary: Add a new card
+      tags: [Payments]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cardNumber, expiry, cvv, holder]
+              properties:
+                cardNumber: { type: string, minLength: 13, maxLength: 19 }
+                expiry: { type: string, pattern: '^\d{2}/\d{2}$' }
+                cvv: { type: string, minLength: 3, maxLength: 4 }
+                holder: { type: string, minLength: 2 }
+      responses:
+        '201':
+          description: Card added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+  /api/v1/payments/cards/{id}:
+    delete:
+      summary: Delete card
+      tags: [Payments]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Card deleted
+  /api/v1/payments/cards/{id}/default:
+    post:
+      summary: Set default card
+      tags: [Payments]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Default card set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+  /api/v1/payments/bank-accounts:
+    get:
+      summary: List bank accounts
+      tags: [Payments]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Bank accounts retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+    post:
+      summary: Add bank account
+      tags: [Payments]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bankCode, accountNumber, accountName]
+              properties:
+                bankCode: { type: string, minLength: 3, maxLength: 6 }
+                accountNumber: { type: string, minLength: 10, maxLength: 10 }
+                accountName: { type: string, minLength: 2 }
+      responses:
+        '201':
+          description: Bank account added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+  /api/v1/payments/withdraw:
+    post:
+      summary: Request withdrawal
+      tags: [Payments]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, bankAccountId]
+              properties:
+                amount: { type: integer, minimum: 1 }
+                currency: { type: string, default: NGN }
+                bankAccountId: { type: string, format: uuid }
+                description: { type: string }
+      responses:
+        '201':
+          description: Withdrawal requested
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      amount: { type: number }
+                      currency: { type: string }
+                      status: { type: string }
+                      description: { type: string }
+                      createdAt: { type: string, format: date-time }
+  /api/v1/payments/transactions:
+    get:
+      summary: List ledger transactions
+      tags: [Payments]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: perPage
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Transactions retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  meta:
+                    type: object

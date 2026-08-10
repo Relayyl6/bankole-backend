@@ -1,0 +1,165 @@
+paths:
+  /api/v1/auth/register:
+    post:
+      summary: Register a new user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fullName, email, password, role, country]
+              properties:
+                fullName: { type: string, minLength: 2 }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                role: { type: string, enum: [sender, agent] }
+                country: { type: string }
+                phoneNumber: { type: string }
+      responses:
+        '201':
+          description: Registered successfully
+  /api/v1/auth/login:
+    post:
+      summary: Authenticate a user
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Authenticated successfully or requires 2FA
+  /api/v1/auth/verify-2fa:
+    post:
+      summary: Verify 2FA during login
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        '200':
+          description: Verified successfully
+  /api/v1/auth/me:
+    get:
+      summary: Get the authenticated user's profile
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Profile retrieved successfully
+    patch:
+      summary: Update the authenticated user's profile
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName: { type: string }
+                bio: { type: string }
+                specialties: { type: array, items: { type: string } }
+      responses:
+        '200':
+          description: Profile updated successfully
+  /api/v1/auth/refresh:
+    post:
+      summary: Refresh JWT token
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: Tokens refreshed
+  /api/v1/auth/logout:
+    post:
+      summary: Logout user
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: Logged out
+  /api/v1/auth/2fa/enable:
+    post:
+      summary: Setup 2FA
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: 2FA setup initiated
+  /api/v1/auth/2fa/verify:
+    post:
+      summary: Confirm 2FA setup
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        '200':
+          description: 2FA confirmed
+  /api/v1/auth/preferences:
+    patch:
+      summary: Update notification and escrow preferences
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                inAppAlerts: { type: boolean }
+                emailNotifications: { type: boolean }
+                autoReleaseEscrow: { type: string, enum: [never, 3days, 7days] }
+      responses:
+        '200':
+          description: Preferences updated
+  /api/v1/auth/password:
+    post:
+      summary: Change password
+      tags: [Auth]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string }
+                newPassword: { type: string }
+      responses:
+        '200':
+          description: Password changed

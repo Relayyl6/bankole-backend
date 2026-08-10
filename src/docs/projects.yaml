@@ -1,0 +1,412 @@
+paths:
+  /api/v1/projects:
+    get:
+      summary: List projects
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Projects retrieved
+    post:
+      summary: Create a project
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, assetType, location, currency, totalBudget, scope, milestones]
+              properties:
+                name: { type: string }
+                assetType: { type: string }
+                location: 
+                  type: object
+                  properties:
+                    label: { type: string }
+                    lat: { type: number }
+                    lng: { type: number }
+                agentId: { type: string }
+                currency: { type: string }
+                totalBudget: { type: number }
+                fundingMode: { type: string, enum: [upfront, milestone] }
+                supervisionFeePercentage: { type: number }
+                scope: { type: string }
+                milestones:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      order: { type: integer }
+                      stage: { type: string }
+                      escrowAmount: { type: number }
+                      dueDate: { type: string }
+      responses:
+        '201':
+          description: Project created
+  /api/v1/projects/{id}:
+    get:
+      summary: Get project details
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Project details retrieved
+    patch:
+      summary: Update project
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                scope: { type: string }
+                currentStage: { type: string }
+      responses:
+        '200':
+          description: Project updated
+  /api/v1/projects/{id}/assign-agent:
+    post:
+      summary: Assign agent
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newAgentId]
+              properties:
+                newAgentId: { type: string }
+      responses:
+        '200':
+          description: Assigned
+  /api/v1/projects/{id}/unassign-agent:
+    post:
+      summary: Unassign agent
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+                requestDispute: { type: boolean }
+      responses:
+        '200':
+          description: Unassigned
+  /api/v1/projects/{id}/send-funds:
+    post:
+      summary: Send mobilization funds to agent
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: number }
+                currency: { type: string }
+                note: { type: string }
+      responses:
+        '201':
+          description: Funds sent
+  /api/v1/projects/{id}/bids:
+    get:
+      summary: List bids
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bids retrieved
+    post:
+      summary: Submit a bid
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [proposal, bidAmount]
+              properties:
+                proposal: { type: string }
+                bidAmount: { type: number }
+                proposedDurationWeeks: { type: number }
+      responses:
+        '201':
+          description: Bid submitted
+  /api/v1/projects/{id}/bids/{bidId}/accept:
+    post:
+      summary: Accept bid
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: bidId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bid accepted
+  /api/v1/projects/{id}/co-funders:
+    post:
+      summary: Invite co-funder
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+                contributionAmount: { type: number }
+      responses:
+        '201':
+          description: Invited
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  email: { type: string, format: email }
+                  status: { type: string }
+                  createdAt: { type: string, format: date-time }
+    get:
+      summary: Get Co-funders
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Co-funders retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+  /api/v1/projects/{id}/co-funders/accept:
+    post:
+      summary: Accept co-funder invite
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '200':
+          description: Invite accepted
+  /api/v1/projects/{id}/milestones:
+    get:
+      summary: Get milestones
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Milestones retrieved
+  /api/v1/projects/{id}/proofs:
+    get:
+      summary: List proofs
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Proofs retrieved
+  /api/v1/projects/{id}/activity:
+    get:
+      summary: List activity
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: perPage
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Activity retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        projectId: { type: string }
+                        type: { type: string }
+                        message: { type: string }
+                        actor:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            name: { type: string }
+                            role: { type: string }
+                        createdAt: { type: string, format: date-time }
+                  meta:
+                    type: object
+                    properties:
+                      page: { type: integer }
+                      perPage: { type: integer }
+                      total: { type: integer }
+                      totalPages: { type: integer }
+  /api/v1/projects/{id}/documents:
+    get:
+      summary: List documents
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Documents retrieved
+    post:
+      summary: Upload document
+      tags: [Projects]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, name, kind]
+              properties:
+                file: { type: string, format: binary }
+                name: { type: string }
+                kind: { type: string }
+      responses:
+        '201':
+          description: Document uploaded

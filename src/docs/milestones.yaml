@@ -1,0 +1,146 @@
+paths:
+  /api/v1/milestones/{id}/fund:
+    post:
+      summary: Fund a milestone
+      tags: [Milestones]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Milestone funded
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/milestones/{id}/submit:
+    post:
+      summary: Submit milestone
+      tags: [Milestones]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Milestone submitted
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/milestones/{id}/approve:
+    post:
+      summary: Approve milestone
+      tags: [Milestones]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        '200':
+          description: Milestone approved
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/milestones/{id}/flag:
+    post:
+      summary: Flag milestone
+      tags: [Milestones]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 10 }
+      responses:
+        '200':
+          description: Milestone flagged
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/v1/milestones/{id}/release:
+    post:
+      summary: Release milestone funds
+      tags: [Milestones]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Funds released
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  milestone: { type: object }
+                  fundsReleased: { type: number }
+                  fundsInEscrow: { type: number }
+  /api/v1/milestones/{id}/proofs:
+    post:
+      summary: Upload AI proof
+      tags: [Milestones]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, caption]
+              properties:
+                file: { type: string, format: binary }
+                caption: { type: string, minLength: 1 }
+                capturedLat: { type: number }
+                capturedLng: { type: number }
+                capturedAt: { type: string, format: date-time }
+      responses:
+        '201':
+          description: Proof uploaded
+          content:
+            application/json:
+              schema:
+                type: object
