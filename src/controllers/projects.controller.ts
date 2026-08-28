@@ -28,7 +28,6 @@ export const createProjectSchema = z.object({
   agentId: z.string().min(1).optional().nullable(),
   currency: z.enum(Object.values(Currency) as [string, ...string[]]),
   totalBudget: z.number().int().positive(),
-  fundingMode: z.enum(['upfront', 'milestone']).default('upfront'),
   supervisionFeePercentage: z.number().min(0).max(100).optional().default(0),
   scope: z.string().min(10, "Please type in a detailed scope of project for our agents to review"),
   milestones: z.array(milestoneInputSchema).min(1, 'At least one milestone is required.'),
@@ -47,32 +46,6 @@ export const unassignAgentSchema = z.object({
 
 export const assignAgentSchema = z.object({
   newAgentId: z.string().min(1, "newAgentId is required."),
-});
-
-export const sendFundsSchema = z.object({
-  amount: z.number().int().positive('Amount must be positive'),
-  currency: z.string().default('NGN'),
-  note: z.string().optional(),
-});
-
-export const submitBidSchema = z.object({
-  proposal: z.string().min(5, 'Proposal description is required'),
-  bidAmount: z.number().int().positive('Bid amount must be positive'),
-  proposedDurationWeeks: z.union([z.number(), z.string()]).optional(),
-});
-
-export const listProjectsSchema = z.object({
-  page: z.string().regex(/^\d+$/).optional(),
-  perPage: z.string().regex(/^\d+$/).optional(),
-  assetType: z.enum(Object.values(AssetType) as [string, ...string[]]).optional(),
-  includeMarketplace: z.enum(['true', 'false']).optional(),
-  status: z.string().optional(),
-  search: z.string().optional(),
-});
-
-export const paginationQuerySchema = z.object({
-  page: z.string().regex(/^\d+$/).optional(),
-  perPage: z.string().regex(/^\d+$/).optional(),
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -199,7 +172,11 @@ export const getProject = async (req: AuthRequest, res: Response, next: NextFunc
     const isOwner =
       project.sender_id === user.id ||
       project.agents?.id === (await getUserAgentId(user.id));
-    if (!isOwner) return forbidden(res);
+
+    // Public/marketplace projects are viewable by anyone authenticated
+    const isPublicProject = !project.agent_id;
+
+    if (!isOwner && !isPublicProject) return forbidden(res);
 
     const { data: milestones } = await supabase
       .from('milestones')
@@ -225,7 +202,7 @@ export const getProject = async (req: AuthRequest, res: Response, next: NextFunc
 export const createProject = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const user = req.user!;
-    const { name, assetType, location, agentId, currency, totalBudget, fundingMode, supervisionFeePercentage, scope, milestones } = req.body;
+    const { name, assetType, location, agentId, currency, totalBudget, supervisionFeePercentage, scope, milestones } = req.body;
 
     // Validate milestones business rules
     const validation = validateMilestones(milestones, totalBudget);
@@ -258,42 +235,6 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
 
     const feePercentage = supervisionFeePercentage ?? 10;
 
-    let fundsInEscrow = 0;
-
-    if (fundingMode === 'upfront') {
-      const { data: userProfile, error: profileError } = await supabase
-        .from('users')
-        .select('wallet_balance')
-        .eq('id', user.id)
-        .single();
-      
-      if (profileError) throw profileError;
-
-      const balance = Number(userProfile?.wallet_balance || 0);
-      if (balance < totalBudget) {
-        return res.status(400).json(buildError('insufficient_funds', `You need at least ₦${totalBudget.toLocaleString()} in your wallet to fund this project upfront.`));
-      }
-
-      // Deduct from wallet
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({ wallet_balance: balance - totalBudget })
-        .eq('id', user.id);
-      
-      if (updateError) throw updateError;
-      
-      fundsInEscrow = totalBudget;
-
-      // Log transaction
-      await supabase.from('ledger_transactions').insert({
-        user_id: user.id,
-        title: `Funded Project: ${name}`,
-        amount: totalBudget,
-        currency,
-        type: 'debit',
-      });
-    }
-
     const { data: project, error: projectError } = await supabase
       .from('projects')
       .insert({
@@ -306,9 +247,8 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
         sender_id: user.id,
         currency,
         total_budget: totalBudget,
-        funding_mode: fundingMode,
         funds_released: 0,
-        funds_in_escrow: fundsInEscrow,
+        funds_in_escrow: totalBudget,
         supervision_fee_percentage: supervisionFeePercentage,
         supervision_fee_total: Math.floor((totalBudget * supervisionFeePercentage) / 100),
         supervision_fee_paid: 0,
@@ -329,7 +269,6 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
     if (projectError) throw projectError;
 
     // Insert milestones
-    const isFunded = fundingMode === 'upfront';
     const milestoneRows = milestones.map((m: any) => ({
       project_id: project.id,
       order: m.order,
@@ -340,7 +279,6 @@ export const createProject = async (req: AuthRequest, res: Response, next: NextF
       due_date: m.dueDate,
       released_at: null,
       proof_count: 0,
-      is_funded: isFunded
     }));
 
     const { error: msError } = await supabase.from('milestones').insert(milestoneRows);
@@ -590,234 +528,6 @@ export const assignAgent = async (req: AuthRequest, res: Response, next: NextFun
     });
 
     return res.status(200).json({ status: resumeStatus, message: 'New agent assigned successfully.' });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/** POST /projects/:id/send-funds — sender sends mobilization funds directly to assigned agent */
-export const sendMobilizationFunds = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const { id: projectId } = req.params;
-    const user = req.user!;
-    const { amount, currency, note } = req.body;
-
-    // 1. Verify project exists and caller is sender
-    const { data: project, error: pError } = await supabase
-      .from('projects')
-      .select('id, name, sender_id, agent_id, agents!projects_agent_id_fkey(id, user_id, name)')
-      .eq('id', projectId)
-      .maybeSingle();
-
-    if (pError) throw pError;
-    if (!project) return notFound(res, 'Project');
-    if (project.sender_id !== user.id) return forbidden(res);
-
-    if (!project.agent_id || !(project as any).agents?.user_id) {
-      return res.status(400).json(buildError('no_assigned_agent', 'This project does not have an assigned agent yet.'));
-    }
-
-    const agentUserId = (project as any).agents.user_id;
-
-    // 2. Fetch sender wallet balance
-    const { data: senderUser, error: uError } = await supabase
-      .from('users')
-      .select('wallet_balance')
-      .eq('id', user.id)
-      .single();
-
-    if (uError) throw uError;
-
-    const senderBalance = senderUser?.wallet_balance ? Number(senderUser.wallet_balance) : 0;
-    if (senderBalance < amount) {
-      return res.status(400).json(buildError('insufficient_balance', 'Insufficient wallet balance to send mobilization funds.'));
-    }
-
-    // 3. Deduct from sender wallet & Credit agent wallet
-    const senderNewBalance = senderBalance - amount;
-    await supabase.from('users').update({ wallet_balance: senderNewBalance }).eq('id', user.id);
-
-    const { data: agentUser } = await supabase.from('users').select('wallet_balance').eq('id', agentUserId).maybeSingle();
-    const agentBalance = agentUser?.wallet_balance ? Number(agentUser.wallet_balance) : 0;
-    await supabase.from('users').update({ wallet_balance: agentBalance + amount }).eq('id', agentUserId);
-
-    // 4. Record transactions in ledger
-    const txId = `tx_mob_${Date.now()}`;
-    await supabase.from('ledger_transactions').insert([
-      {
-        user_id: user.id,
-        title: note ? `Mobilization Funds Transfer: ${note}` : 'Mobilization Funds Transfer to Agent',
-        amount,
-        currency: currency || 'NGN',
-        type: 'debit',
-      },
-      {
-        user_id: agentUserId,
-        title: note ? `Mobilization Funds Received: ${note}` : 'Mobilization Funds Received from Project Owner',
-        amount,
-        currency: currency || 'NGN',
-        type: 'credit',
-      },
-    ]);
-
-    // 5. Record activity
-    await logActivity({
-      projectId: projectId as string,
-      type: ActivityType.STAGE_UPDATED,
-      message: `Mobilization funds of ₦${amount.toLocaleString()} released to agent.`,
-      actorId: user.id,
-    });
-
-    return res.status(200).json({
-      success: true,
-      amount,
-      currency: currency || 'NGN',
-      senderNewBalance,
-      transactionId: txId,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/** POST /projects/:id/bids — agent submits bid on open project */
-export const submitBid = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const { id: projectId } = req.params;
-    const user = req.user!;
-    const { proposal, bidAmount, proposedDurationWeeks } = req.body;
-
-    // Get agent profile
-    const { data: agent, error: aError } = await supabase
-      .from('agents')
-      .select('id, verified')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (aError) throw aError;
-    if (!agent) {
-      return res.status(400).json(buildError('not_an_agent', 'Agent profile not found for this user.'));
-    }
-
-    // Verify project exists and is open for bids
-    const { data: project, error: pError } = await supabase
-      .from('projects')
-      .select('id, is_open_for_bids, agent_id')
-      .eq('id', projectId)
-      .maybeSingle();
-
-    if (pError) throw pError;
-    if (!project) return notFound(res, 'Project');
-
-    const durationWeeks = proposedDurationWeeks ? parseInt(String(proposedDurationWeeks), 10) : 12;
-
-    const { data: bid, error: insertError } = await supabase
-      .from('project_bids')
-      .insert({
-        project_id: projectId,
-        agent_id: agent.id,
-        proposal,
-        bid_amount: bidAmount,
-        proposed_duration_weeks: isNaN(durationWeeks) ? 12 : durationWeeks,
-        status: 'submitted',
-      })
-      .select()
-      .single();
-
-    if (insertError) throw insertError;
-
-    return res.status(201).json({
-      id: bid.id,
-      projectId: bid.project_id,
-      agentId: bid.agent_id,
-      proposal: bid.proposal,
-      bidAmount: bid.bid_amount,
-      proposedDurationWeeks: bid.proposed_duration_weeks,
-      status: bid.status,
-      createdAt: bid.created_at,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/** POST /projects/:id/bids/:bidId/accept — sender accepts an agent bid */
-export const acceptBid = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const { id: projectId, bidId } = req.params;
-    const user = req.user!;
-
-    // 1. Verify project exists and caller is sender
-    const { data: project, error: pError } = await supabase
-      .from('projects')
-      .select('id, sender_id, name')
-      .eq('id', projectId)
-      .maybeSingle();
-
-    if (pError) throw pError;
-    if (!project) return notFound(res, 'Project');
-    if (project.sender_id !== user.id) return forbidden(res);
-
-    // 2. Fetch bid
-    const { data: bid, error: bError } = await supabase
-      .from('project_bids')
-      .select('id, agent_id, bid_amount')
-      .eq('id', bidId)
-      .eq('project_id', projectId)
-      .maybeSingle();
-
-    if (bError) throw bError;
-    if (!bid) return notFound(res, 'Bid');
-
-    // 3. Mark this bid as accepted and other bids as rejected
-    await supabase.from('project_bids').update({ status: 'accepted' }).eq('id', bidId);
-    await supabase.from('project_bids').update({ status: 'rejected' }).eq('project_id', projectId).neq('id', bidId);
-
-    // 4. Assign agent to project & update status
-    const { error: updateError } = await supabase
-      .from('projects')
-      .update({
-        agent_id: bid.agent_id,
-        status: ProjectStatus.ON_TRACK,
-        is_open_for_bids: false,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', projectId);
-
-    if (updateError) throw updateError;
-
-    // 5. Log activity
-    await logActivity({
-      projectId: projectId as string,
-      type: ActivityType.AGENT_ASSIGNED,
-      message: `Agent bid accepted. Project is now active on track.`,
-      actorId: user.id,
-    });
-
-    return res.status(200).json({
-      success: true,
-      projectId,
-      agentId: bid.agent_id,
-      status: ProjectStatus.ON_TRACK,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/** GET /projects/:id/bids — list bids for a project */
-export const listProjectBids = async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const { id: projectId } = req.params;
-    const { data: bids, error } = await supabase
-      .from('project_bids')
-      .select('*, agents!project_bids_agent_id_fkey(id, name, rating, review_count, verified, avatar_url)')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-
-    return res.status(200).json({ data: bids || [] });
   } catch (err) {
     next(err);
   }
