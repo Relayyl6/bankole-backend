@@ -9,6 +9,8 @@ import swaggerSpec from './config/swagger.config';
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 // ─── Global Middlewares ───────────────────────────────────────────────────────
 const allowedOrigins = env.CORS_ORIGIN.split(',').map((o) => o.trim());
 

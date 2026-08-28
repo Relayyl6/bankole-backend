@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, requireRole } from '../middlewares/auth.middleware';
+import { idempotency } from '../middlewares/idempotency.middleware';
 import { validate } from '../middlewares/validate.middleware';
 import { Role } from '../types/enums';
 import {
@@ -11,7 +12,7 @@ import {
 const router = Router();
 
 // Wallet Top-up (Sender only)
-router.post('/topup', authenticate, requireRole(Role.SENDER), validate(topupWalletSchema), topupWallet);
+router.post('/topup', authenticate, requireRole(Role.SENDER), idempotency, validate(topupWalletSchema), topupWallet);
 
 // Bank account resolution (All authenticated)
 router.post('/bank-accounts/resolve', authenticate, validate(resolveBankAccountSchema), resolveBankAccountController);
@@ -27,7 +28,7 @@ router.get('/bank-accounts', authenticate, requireRole(Role.AGENT), getBankAccou
 router.post('/bank-accounts', authenticate, requireRole(Role.AGENT), validate(addBankAccountSchema), addBankAccount);
 
 // Withdrawal (Agent only)
-router.post('/withdraw', authenticate, requireRole(Role.AGENT), validate(withdrawSchema), requestWithdrawal);
+router.post('/withdraw', authenticate, requireRole(Role.AGENT), idempotency, validate(withdrawSchema), requestWithdrawal);
 
 // Transactions (all authenticated)
 router.get('/transactions', authenticate, getTransactions);

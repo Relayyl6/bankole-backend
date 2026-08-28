@@ -1,4 +1,87 @@
 paths:
+  /api/v1/projects/{id}/proofs:
+    get:
+      summary: List project proofs
+      tags: [Proofs]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          required: false
+          schema:
+            type: integer
+        - in: query
+          name: perPage
+          required: false
+          schema:
+            type: integer
+        - in: query
+          name: milestoneId
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of proofs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        projectId: { type: string }
+                        milestoneId: { type: string }
+                        type: { type: string }
+                        caption: { type: string }
+                        fileUrl: { type: string }
+                        thumbnailUrl: { type: string, nullable: true }
+                        capturedAt: { type: string, format: date-time, nullable: true }
+                        uploadedAt: { type: string, format: date-time }
+                        geo:
+                          type: object
+                          nullable: true
+                          properties:
+                            lat: { type: number }
+                            lng: { type: number }
+                        verification:
+                          type: object
+                          nullable: true
+                          properties:
+                            riskLevel: { type: string }
+                            verdict: { type: string }
+                            confidence: { type: number }
+                            summary: { type: string }
+                            checks: { type: array }
+                            flags: { type: array }
+                        status: { type: string }
+                  meta:
+                    type: object
+                    properties:
+                      page: { type: integer }
+                      perPage: { type: integer }
+                      total: { type: integer }
+                      totalPages: { type: integer }
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
   /api/v1/proofs/{id}/verification:
     get:
       summary: Get proof details
@@ -18,9 +101,9 @@ paths:
               schema:
                 type: object
                 properties:
-                  id: { type: string, format: uuid }
-                  projectId: { type: string, format: uuid }
-                  milestoneId: { type: string, format: uuid }
+                  id: { type: string }
+                  projectId: { type: string }
+                  milestoneId: { type: string }
                   type: { type: string }
                   caption: { type: string }
                   fileUrl: { type: string }
@@ -44,6 +127,12 @@ paths:
                       checks: { type: array }
                       flags: { type: array }
                   status: { type: string }
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
   /api/v1/proofs/{id}/approve:
     post:
       summary: Approve proof
@@ -55,6 +144,11 @@ paths:
           required: true
           schema:
             type: string
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           description: Proof approved
@@ -63,9 +157,9 @@ paths:
               schema:
                 type: object
                 properties:
-                  id: { type: string, format: uuid }
-                  projectId: { type: string, format: uuid }
-                  milestoneId: { type: string, format: uuid }
+                  id: { type: string }
+                  projectId: { type: string }
+                  milestoneId: { type: string }
                   type: { type: string }
                   caption: { type: string }
                   fileUrl: { type: string }
@@ -89,6 +183,14 @@ paths:
                       checks: { type: array }
                       flags: { type: array }
                   status: { type: string }
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
   /api/v1/proofs/{id}/flag:
     post:
       summary: Flag proof for dispute
@@ -100,6 +202,11 @@ paths:
           required: true
           schema:
             type: string
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
       responses:
         '200':
           description: Proof flagged
@@ -108,9 +215,9 @@ paths:
               schema:
                 type: object
                 properties:
-                  id: { type: string, format: uuid }
-                  projectId: { type: string, format: uuid }
-                  milestoneId: { type: string, format: uuid }
+                  id: { type: string }
+                  projectId: { type: string }
+                  milestoneId: { type: string }
                   type: { type: string }
                   caption: { type: string }
                   fileUrl: { type: string }
@@ -134,3 +241,11 @@ paths:
                       checks: { type: array }
                       flags: { type: array }
                   status: { type: string }
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found

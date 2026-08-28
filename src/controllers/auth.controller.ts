@@ -509,8 +509,9 @@ export const changePassword = async (req: AuthRequest, res: Response, next: Next
 export const enable2fa = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const speakeasy = await import('speakeasy');
+    const speakeasyLib = speakeasy.default || speakeasy;
 
-    const secret = speakeasy.default.generateSecret({
+    const secret = speakeasyLib.generateSecret({
       name: `Bankole:${req.user!.email}`,
       issuer: 'Bankole',
     });
@@ -560,7 +561,9 @@ export const verify2fa = async (req: AuthRequest, res: Response, next: NextFunct
       return res.status(400).json(buildError('2fa_not_initiated', '2FA setup has not been initiated. Call /auth/2fa/enable first.'));
     }
 
-    const isValid = speakeasy.default.totp.verify({
+    const speakeasyLib = speakeasy.default || speakeasy;
+
+    const isValid = speakeasyLib.totp.verify({
       secret: user.totp_secret,
       encoding: 'base32',
       token: code,

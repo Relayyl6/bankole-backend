@@ -61,6 +61,20 @@ export const submitBidSchema = z.object({
   proposedDurationWeeks: z.union([z.number(), z.string()]).optional(),
 });
 
+export const listProjectsSchema = z.object({
+  page: z.string().regex(/^\d+$/).optional(),
+  perPage: z.string().regex(/^\d+$/).optional(),
+  assetType: z.enum(Object.values(AssetType) as [string, ...string[]]).optional(),
+  includeMarketplace: z.enum(['true', 'false']).optional(),
+  status: z.string().optional(),
+  search: z.string().optional(),
+});
+
+export const paginationQuerySchema = z.object({
+  page: z.string().regex(/^\d+$/).optional(),
+  perPage: z.string().regex(/^\d+$/).optional(),
+});
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const formatProjectSummary = (p: any, agent: any) => ({

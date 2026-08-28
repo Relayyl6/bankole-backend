@@ -27,7 +27,7 @@ paths:
                     properties:
                       id: { type: string, format: uuid }
                       name: { type: string }
-                      avatarUrl: { type: string }
+                      avatarUrl: { type: string, nullable: true }
                   lastMessage: { type: string }
                   unreadCount: { type: integer }
                   updatedAt: { type: string, format: date-time }
@@ -44,7 +44,7 @@ paths:
                     properties:
                       id: { type: string, format: uuid }
                       name: { type: string }
-                      avatarUrl: { type: string }
+                      avatarUrl: { type: string, nullable: true }
                   lastMessage: { type: string }
                   unreadCount: { type: integer }
                   updatedAt: { type: string, format: date-time }
@@ -71,7 +71,7 @@ paths:
                           properties:
                             id: { type: string, format: uuid }
                             name: { type: string }
-                            avatarUrl: { type: string }
+                            avatarUrl: { type: string, nullable: true }
                         lastMessage: { type: string }
                         unreadCount: { type: integer }
                         updatedAt: { type: string, format: date-time }

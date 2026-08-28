@@ -34,6 +34,8 @@ paths:
       responses:
         '200':
           description: Projects retrieved
+        '400':
+          description: Bad request
           content:
             application/json:
               schema:
@@ -45,6 +47,11 @@ paths:
       summary: Create project
       tags: [Projects]
       security: [{ bearerAuth: [] }]
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -73,6 +80,7 @@ paths:
                   minItems: 1
                   items:
                     type: object
+                    required: [order, stage, escrowAmount, dueDate]
                     properties:
                       order: { type: integer, minimum: 1 }
                       stage: { type: string, minLength: 1 }
@@ -81,6 +89,12 @@ paths:
       responses:
         '201':
           description: Project created
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -99,6 +113,10 @@ paths:
       responses:
         '200':
           description: Project retrieved
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -126,6 +144,12 @@ paths:
       responses:
         '200':
           description: Project updated
+        '400':
+          description: Bad request
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -144,6 +168,8 @@ paths:
       responses:
         '200':
           description: Bids retrieved
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -175,6 +201,12 @@ paths:
       responses:
         '201':
           description: Bid submitted
+        '400':
+          description: Bad request
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -198,6 +230,10 @@ paths:
       responses:
         '200':
           description: Bid accepted
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -225,6 +261,12 @@ paths:
       responses:
         '200':
           description: Agent assigned
+        '400':
+          description: Bad request
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -253,6 +295,14 @@ paths:
       responses:
         '200':
           description: Agent unassigned
+        '400':
+          description: Bad request
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
+        '409':
+          description: Conflict
           content:
             application/json:
               schema:
@@ -266,6 +316,10 @@ paths:
         - in: path
           name: id
           required: true
+          schema:
+            type: string
+        - in: header
+          name: Idempotency-Key
           schema:
             type: string
       requestBody:
@@ -282,6 +336,10 @@ paths:
       responses:
         '200':
           description: Funds sent
+        '400':
+          description: Bad request
+        '403':
+          description: Forbidden
           content:
             application/json:
               schema:
@@ -309,6 +367,12 @@ paths:
       responses:
         '201':
           description: Invited
+        '400':
+          description: Bad request
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -332,6 +396,8 @@ paths:
       responses:
         '200':
           description: Milestones retrieved
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -360,6 +426,10 @@ paths:
       responses:
         '200':
           description: Activity retrieved
+        '400':
+          description: Bad request
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -392,9 +462,29 @@ paths:
           required: true
           schema:
             type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: perPage
+          schema:
+            type: integer
+        - in: query
+          name: milestoneId
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
       responses:
         '200':
           description: Proofs retrieved
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -426,6 +516,10 @@ paths:
       responses:
         '200':
           description: Documents retrieved
+        '400':
+          description: Bad request
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -457,6 +551,10 @@ paths:
       responses:
         '201':
           description: Document uploaded
+        '400':
+          description: Bad request
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -483,6 +581,10 @@ paths:
       responses:
         '200':
           description: Messages retrieved
+        '400':
+          description: Bad request
+        '404':
+          description: Not found
           content:
             application/json:
               schema:
@@ -512,6 +614,10 @@ paths:
       responses:
         '201':
           description: Message sent
+        '400':
+          description: Bad request
+        '404':
+          description: Not found
           content:
             application/json:
               schema:

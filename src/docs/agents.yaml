@@ -2,8 +2,8 @@ paths:
   /api/v1/agents:
     get:
       summary: List agents
-      tags: [Agents]
-      security: [{ bearerAuth: [] }]
+      tags:
+        - Agents
       parameters:
         - in: query
           name: page
@@ -21,12 +21,17 @@ paths:
           name: verifiedOnly
           schema:
             type: string
-            enum: ['true', 'false']
+            enum:
+              - 'true'
+              - 'false'
         - in: query
           name: sort
           schema:
             type: string
-            enum: [rating, experience, projects]
+            enum:
+              - rating
+              - experience
+              - projects
         - in: query
           name: minRating
           schema:
@@ -51,13 +56,87 @@ paths:
               schema:
                 type: object
                 properties:
-                  data: { type: array, items: { type: object } }
-                  meta: { type: object }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  meta:
+                    type: object
+        '400':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '401':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '403':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '404':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '500':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
   /api/v1/agents/{id}:
     get:
       summary: Get agent profile
-      tags: [Agents]
-      security: [{ bearerAuth: [] }]
+      tags:
+        - Agents
       parameters:
         - in: path
           name: id
@@ -71,11 +150,83 @@ paths:
             application/json:
               schema:
                 type: object
+        '400':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '401':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '403':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '404':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '500':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
   /api/v1/agents/{id}/reviews:
     post:
       summary: Add review
-      tags: [Agents]
-      security: [{ bearerAuth: [] }]
+      tags:
+        - Agents
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -88,10 +239,17 @@ paths:
           application/json:
             schema:
               type: object
-              required: [rating, quote]
+              required:
+                - rating
+                - quote
               properties:
-                rating: { type: integer, minimum: 1, maximum: 5 }
-                quote: { type: string, minLength: 10 }
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                quote:
+                  type: string
+                  minLength: 10
       responses:
         '201':
           description: Review added
@@ -100,12 +258,85 @@ paths:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean }
+                  success:
+                    type: boolean
+        '400':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '401':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '403':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '404':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '500':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
   /api/v1/agents/{id}/credentials:
     post:
       summary: Add credential
-      tags: [Agents]
-      security: [{ bearerAuth: [] }]
+      tags:
+        - Agents
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -119,12 +350,18 @@ paths:
             schema:
               type: object
               properties:
-                label: { type: string }
-                licenseType: { type: string }
-                licenseNumber: { type: string }
-                issuer: { type: string }
-                yearIssued: { type: string }
-                verifiedOn: { type: string }
+                label:
+                  type: string
+                licenseType:
+                  type: string
+                licenseNumber:
+                  type: string
+                issuer:
+                  type: string
+                yearIssued:
+                  type: integer
+                verifiedOn:
+                  type: string
       responses:
         '201':
           description: Credential added
@@ -133,18 +370,100 @@ paths:
               schema:
                 type: object
                 properties:
-                  id: { type: string, format: uuid }
-                  licenseType: { type: string }
-                  licenseNumber: { type: string }
-                  label: { type: string }
-                  issuer: { type: string }
-                  verifiedOn: { type: string, format: date-time, nullable: true }
-                  verified: { type: boolean }
+                  id:
+                    type: string
+                    format: uuid
+                  licenseType:
+                    type: string
+                  licenseNumber:
+                    type: string
+                  label:
+                    type: string
+                  issuer:
+                    type: string
+                  verifiedOn:
+                    type: string
+                    format: date-time
+                    nullable: true
+                  verified:
+                    type: boolean
+        '400':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '401':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '403':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '404':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '500':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
   /api/v1/agents/{id}/portfolio:
     post:
       summary: Add portfolio item
-      tags: [Agents]
-      security: [{ bearerAuth: [] }]
+      tags:
+        - Agents
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -157,15 +476,25 @@ paths:
           application/json:
             schema:
               type: object
-              required: [title, location]
+              required:
+                - title
+                - location
               properties:
-                title: { type: string, minLength: 2 }
-                location: { type: string }
-                assetType: { type: string }
-                summary: { type: string }
-                imageUrl: { type: string }
-                coverUrl: { type: string }
-                completionYear: { type: string }
+                title:
+                  type: string
+                  minLength: 2
+                location:
+                  type: string
+                assetType:
+                  type: string
+                summary:
+                  type: string
+                imageUrl:
+                  type: string
+                coverUrl:
+                  type: string
+                completionYear:
+                  type: string
       responses:
         '201':
           description: Portfolio item added
@@ -174,19 +503,100 @@ paths:
               schema:
                 type: object
                 properties:
-                  id: { type: string, format: uuid }
-                  title: { type: string }
-                  location: { type: string }
-                  assetType: { type: string }
-                  summary: { type: string }
-                  imageUrl: { type: string }
-                  coverUrl: { type: string }
-                  completionYear: { type: string }
+                  id:
+                    type: string
+                    format: uuid
+                  title:
+                    type: string
+                  location:
+                    type: string
+                  assetType:
+                    type: string
+                  summary:
+                    type: string
+                  imageUrl:
+                    type: string
+                  coverUrl:
+                    type: string
+                  completionYear:
+                    type: string
+        '400':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '401':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '403':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '404':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '500':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
   /api/v1/agents/{id}/verification-docs:
     post:
       summary: Upload verification docs
-      tags: [Agents]
-      security: [{ bearerAuth: [] }]
+      tags:
+        - Agents
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -199,12 +609,20 @@ paths:
           multipart/form-data:
             schema:
               type: object
-              required: [idDocument]
+              required:
+                - idDocument
               properties:
-                idDocument: { type: string, format: binary }
-                credentials: { type: string, format: binary }
-                reference: { type: string, format: binary }
-                statement: { type: string }
+                idDocument:
+                  type: string
+                  format: binary
+                credentials:
+                  type: string
+                  format: binary
+                reference:
+                  type: string
+                  format: binary
+                statement:
+                  type: string
       responses:
         '200':
           description: Verification docs uploaded
@@ -213,5 +631,77 @@ paths:
               schema:
                 type: object
                 properties:
-                  message: { type: string }
-                  status: { type: string }
+                  message:
+                    type: string
+                  status:
+                    type: string
+        '400':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '401':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '403':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '404':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '500':
+          description: Error response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string

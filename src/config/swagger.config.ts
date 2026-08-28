@@ -38,7 +38,7 @@ const options: swaggerJsdoc.Options = {
       },
     ],
   },
-  apis: [path.join(process.cwd(), 'src/docs/*.yaml')], // Paths to files containing OpenAPI definitions
+  apis: [path.join(process.cwd(), 'src/docs/*.yaml').replace(/\\/g, '/')], // Paths to files containing OpenAPI definitions
 };
 
 const swaggerSpec = swaggerJsdoc(options);
