@@ -3,7 +3,9 @@ import { env } from '../config/env.config';
 import { buildError } from '../utils/response';
 
 export const errorHandler = (err: any, _req: Request, res: Response, _next: NextFunction) => {
-  // Multer errors (file upload issues)
+  console.error('🔥 ACTUAL ERROR:', err);
+
+  // Multer errors (file console.error('🔥 ACTUAL ERROR:', err);upload issues)
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json(buildError('file_too_large', 'File exceeds the maximum allowed size of 100 MB.'));
   }
