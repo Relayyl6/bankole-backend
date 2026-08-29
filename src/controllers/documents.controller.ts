@@ -4,7 +4,7 @@ import { supabase } from '../config/supabase.config';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { forbidden, notFound, parsePagination, paginatedResponse, buildError } from '../utils/response';
 import { logActivity } from '../utils/activity';
-import { DocumentKind, ActivityType } from '../types/enums';
+import { DocumentKind, ActivityType, Role } from '../types/enums';
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
