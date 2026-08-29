@@ -2,6 +2,17 @@
 
 This repository implements the backend service for the Bankole application. It strictly adheres to the API specification below while introducing several robust, production-grade architectural augmentations.
 
+## Screenshots
+
+![Dashboard](assets/dashboard.png)
+*User Dashboard Overview*
+
+![Marketplace](assets/marketplace.png)
+*Open Opportunities / Marketplace*
+
+![Messages](assets/messages.png)
+*Messaging Interface (Messaging Leonard Oseghale)*
+
 ## 🚀 Architectural Augmentations (Beyond the Contract)
 
 While the implementation strictly adheres to the requested API endpoints and response shapes, the following robust architectural features were built into the foundation to ensure the system is secure, performant, and safe for financial operations:
