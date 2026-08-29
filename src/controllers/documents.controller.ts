@@ -26,10 +26,10 @@ const formatDocument = (d: any) => ({
   uploadedOn: d.uploaded_on,
 });
 
-const assertProjectAccess = async (projectId: string, userId: string, res: Response) => {
+const assertProjectAccess = async (projectId: string, userId: string, res: Response, role?: Role) => {
   const { data: project, error } = await supabase
     .from('projects')
-    .select('id, sender_id, agents!projects_agent_id_fkey(user_id)')
+    .select('id, sender_id, is_open_for_bids, agents!projects_agent_id_fkey(user_id)')
     .eq('id', projectId)
     .maybeSingle();
 
@@ -37,7 +37,8 @@ const assertProjectAccess = async (projectId: string, userId: string, res: Respo
 
   const agentUserId = (project as any).agents?.user_id;
   const isOwner = project.sender_id === userId || agentUserId === userId;
-  if (!isOwner) { forbidden(res); return null; }
+  const isMarketplaceAccess = role === Role.AGENT && project.is_open_for_bids;
+  if (!isOwner && !isMarketplaceAccess) { forbidden(res); return null; }
   return project;
 };
 
@@ -49,7 +50,7 @@ export const listDocuments = async (req: AuthRequest, res: Response, next: NextF
     const { id: projectId } = req.params;
     const pagination = parsePagination(req.query);
 
-    const project = await assertProjectAccess(projectId as string, req.user!.id, res);
+    const project = await assertProjectAccess(projectId as string, req.user!.id, res, req.user!.role);
     if (!project) return;
 
     const { data, count, error } = await supabase
@@ -76,7 +77,7 @@ export const uploadDocument = async (req: AuthRequest, res: Response, next: Next
 
     if (!file) return res.status(400).json(buildError('no_file', 'A file is required.'));
 
-    const project = await assertProjectAccess(projectId as string, user.id, res);
+    const project = await assertProjectAccess(projectId as string, user.id, res, user.role);
     if (!project) return;
 
     const { name, kind } = req.body;

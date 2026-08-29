@@ -226,7 +226,7 @@ export const listProjectProofs = async (req: AuthRequest, res: Response, next: N
     // Verify ownership
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id, sender_id, agents!projects_agent_id_fkey(user_id)')
+      .select('id, sender_id, is_open_for_bids, agents!projects_agent_id_fkey(user_id)')
       .eq('id', projectId)
       .maybeSingle();
 
@@ -235,7 +235,8 @@ export const listProjectProofs = async (req: AuthRequest, res: Response, next: N
 
     const agentUserId = (project as any).agents?.user_id;
     const isOwner = project.sender_id === user.id || agentUserId === user.id;
-    if (!isOwner) return forbidden(res);
+    const isMarketplaceAccess = project.is_open_for_bids && user.role === Role.AGENT;
+    if (!isOwner && !isMarketplaceAccess) return forbidden(res);
 
     let query = supabase
       .from('proofs')

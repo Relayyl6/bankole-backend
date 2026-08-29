@@ -199,7 +199,11 @@ export const getProject = async (req: AuthRequest, res: Response, next: NextFunc
     const isOwner =
       project.sender_id === user.id ||
       project.agents?.id === (await getUserAgentId(user.id));
-    if (!isOwner) return forbidden(res);
+      
+    // Allow agents to view projects on the marketplace
+    const isMarketplaceAccess = project.is_open_for_bids && user.role === Role.AGENT;
+    
+    if (!isOwner && !isMarketplaceAccess) return forbidden(res);
 
     const { data: milestones } = await supabase
       .from('milestones')

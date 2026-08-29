@@ -53,7 +53,7 @@ export const listMilestones = async (req: AuthRequest, res: Response, next: Next
     // Verify project ownership
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id, sender_id, agents!projects_agent_id_fkey(user_id)')
+      .select('id, sender_id, is_open_for_bids, agents!projects_agent_id_fkey(user_id)')
       .eq('id', projectId)
       .maybeSingle();
 
@@ -62,7 +62,8 @@ export const listMilestones = async (req: AuthRequest, res: Response, next: Next
 
     const agentUserId = (project as any).agents?.user_id;
     const isOwner = project.sender_id === user.id || agentUserId === user.id;
-    if (!isOwner) return forbidden(res);
+    const isMarketplaceAccess = project.is_open_for_bids && user.role === Role.AGENT;
+    if (!isOwner && !isMarketplaceAccess) return forbidden(res);
 
     const { data: milestones, error } = await supabase
       .from('milestones')
